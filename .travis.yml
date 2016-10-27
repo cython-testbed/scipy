@@ -54,7 +54,7 @@ matrix:
       env:
         - TESTMODE=fast
         - COVERAGE=
-        - NUMPYSPEC="numpy==1.7.2"
+        - NUMPYSPEC="numpy==1.8.2"
         - USE_SDIST=1
     - python: 2.7
       env:
@@ -98,7 +98,8 @@ before_install:
   # Speed up install by not compiling Cython
   - travis_retry pip install --install-option="--no-cython-compile" https://github.com/cython/cython/archive/master.zip
   - travis_retry pip install $NUMPYSPEC
-  - travis_retry pip install nose mpmath argparse Pillow codecov setuptools
+  - travis_retry pip install nose mpmath argparse Pillow codecov
+  - travis_retry pip install --upgrade pip setuptools
   - travis_retry pip install gmpy2  # speeds up mpmath (scipy.special tests)
   - if [ "${TESTMODE}" == "full" ]; then pip install coverage; fi
   - if [ "${USE_WHEEL}" == "1" ]; then pip install wheel; fi
@@ -125,7 +126,7 @@ script:
         python setup.py sdist
         # Move out of source directory to avoid finding local scipy
         pushd dist
-        pip install scipy*
+        pip install scipy* -v
         popd
         USE_WHEEL_BUILD="--no-build"
     fi

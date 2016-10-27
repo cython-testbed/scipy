@@ -937,6 +937,10 @@ Available Functions
 
         double complex wofz(double complex)
 
+- :py:func:`~scipy.special.wrightomega`::
+
+        double complex wrightomega(double complex)
+
 - :py:func:`~scipy.special.xlog1py`::
 
         double xlog1py(double, double)
@@ -1008,29 +1012,12 @@ ctypedef double complex double_complex
 ctypedef long double complex long_double_complex
 
 def errprint(inflag=None):
-    """
-    errprint(inflag=None)
-
-    Sets or returns the error printing flag for special functions.
-
-    Parameters
-    ----------
-    inflag : bool, optional
-        Whether warnings concerning evaluation of special functions in
-        scipy.special are shown. If omitted, no change is made to the
-        current setting.
-
-    Returns
-    -------
-    old_flag
-        Previous value of the error flag
-
-    """
+    """See the documentation for scipy.special.errprint"""
     if inflag is not None:
         scipy.special._ufuncs_cxx._set_errprint(int(bool(inflag)))
-        return sf_error.set_print(int(bool(inflag)))
+        return bool(sf_error.set_print(int(bool(inflag))))
     else:
-        return sf_error.get_print()
+        return bool(sf_error.get_print())
 
 cdef extern from "_ufuncs_defs.h":
     cdef npy_int _func_airy_wrap "airy_wrap"(npy_double, npy_double *, npy_double *, npy_double *, npy_double *)nogil
@@ -3271,6 +3258,10 @@ cpdef double tklmbda(double x0, double x1) nogil:
 cpdef double complex wofz(double complex x0) nogil:
     """See the documentation for scipy.special.wofz"""
     return (<double complex(*)(double complex) nogil>scipy.special._ufuncs_cxx._export_faddeeva_w)(x0)
+
+cpdef double complex wrightomega(double complex x0) nogil:
+    """See the documentation for scipy.special.wrightomega"""
+    return (<double complex(*)(double complex) nogil>scipy.special._ufuncs_cxx._export_wrightomega)(x0)
 
 cpdef Dd_number_t xlog1py(Dd_number_t x0, Dd_number_t x1) nogil:
     """See the documentation for scipy.special.xlog1py"""
