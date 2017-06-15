@@ -19,7 +19,7 @@ in docstrings. This is different from doctesting [we do not aim to have
 scipy docstrings doctestable!], this is just to make sure that code in
 docstrings is valid python::
 
-    $ python refguide_check.py --check_docs optimize
+    $ python refguide_check.py --doctests optimize
 
 """
 from __future__ import print_function
@@ -38,18 +38,29 @@ from docutils.parsers.rst import directives
 import shutil
 import glob
 from doctest import NORMALIZE_WHITESPACE, ELLIPSIS, IGNORE_EXCEPTION_DETAIL
-from argparse import ArgumentParser, REMAINDER
+from argparse import ArgumentParser
+from pkg_resources import parse_version
+
+import sphinx
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'doc', 'sphinxext'))
 from numpydoc.docscrape_sphinx import get_doc_object
-# Remove sphinx directives that don't run without Sphinx environment
-directives._directives.pop('versionadded', None)
-directives._directives.pop('versionchanged', None)
-directives._directives.pop('moduleauthor', None)
-directives._directives.pop('sectionauthor', None)
-directives._directives.pop('codeauthor', None)
-directives._directives.pop('toctree', None)
+
+if parse_version(sphinx.__version__) >= parse_version('1.5'):
+    # Enable specific Sphinx directives
+    from sphinx.directives import SeeAlso, Only
+    directives.register_directive('seealso', SeeAlso)
+    directives.register_directive('only', Only)
+else:
+    # Remove sphinx directives that don't run without Sphinx environment.
+    # Sphinx < 1.5 installs all directives on import...
+    directives._directives.pop('versionadded', None)
+    directives._directives.pop('versionchanged', None)
+    directives._directives.pop('moduleauthor', None)
+    directives._directives.pop('sectionauthor', None)
+    directives._directives.pop('codeauthor', None)
+    directives._directives.pop('toctree', None)
 
 
 BASE_MODULE = "scipy"
@@ -115,7 +126,8 @@ REFGUIDE_ALL_SKIPLIST = [
 # these names are not required to be in an autosummary:: listing
 # despite being in ALL
 REFGUIDE_AUTOSUMMARY_SKIPLIST = [
-    r'scipy\.special\..*_roots' # old aliases for scipy.special.*_roots
+    r'scipy\.special\..*_roots', # old aliases for scipy.special.*_roots
+	r'scipy\.linalg\.solve_lyapunov' # deprecated name
 ]
 
 
@@ -272,10 +284,17 @@ def check_items(all_dict, names, deprecated, others, module_name, dots=True):
             for name in sorted(only_all):
                 output += "    " + name + "\n"
 
+            output += "\nThis issue can be fixed by adding these objects to\n"
+            output += "the function listing in __init__.py for this module\n"
+
         if len(only_ref) > 0:
             output += "ERROR: objects in refguide but not in %s.__all__::\n\n" % module_name
             for name in sorted(only_ref):
                 output += "    " + name + "\n"
+
+            output += "\nThis issue should likely be fixed by removing these objects\n"
+            output += "from the function listing in __init__.py for this module\n"
+            output += "or adding them to __all__.\n"
 
         if len(missing) > 0:
             output += "ERROR: missing objects::\n\n"
@@ -853,8 +872,9 @@ def main(argv):
         sys.stderr.flush()
 
     if not args.skip_tutorial:
-        tut_path = os.path.join(os.getcwd(), 'doc', 'source', 'tutorial', '*.rst')
-        print('\nChecking tutorial files at %s:' % tut_path)
+        base_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..')
+        tut_path = os.path.join(base_dir, 'doc', 'source', 'tutorial', '*.rst')
+        print('\nChecking tutorial files at %s:' % os.path.relpath(tut_path, os.getcwd()))
         for filename in sorted(glob.glob(tut_path)):
             if dots:
                 sys.stderr.write('\n')

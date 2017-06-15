@@ -6,6 +6,11 @@
 # generate_ufuncs.py to generate the docstrings for the ufuncs in
 # scipy.special at the C level when the ufuncs are created at compile
 # time.
+#
+# Note : After editing this file and committing changes, please run
+# generate_funcs.py and commit the changes as a separate commit with a comment
+# such as : GEN: special: run generate_ufuncs.py
+
 
 from __future__ import division, print_function, absolute_import
 
@@ -19,42 +24,74 @@ def get(name):
 def add_newdoc(place, name, doc):
     docdict['.'.join((place, name))] = doc
 
+
+add_newdoc("scipy.special", "_sf_error_test_function",
+    """
+    Private function; do not use.
+    """)
+
 add_newdoc("scipy.special", "sph_harm",
     r"""
     sph_harm(m, n, theta, phi)
 
     Compute spherical harmonics.
 
-    .. math:: Y^m_n(\theta,\phi) = \sqrt{\frac{2n+1}{4\pi}\frac{(n-m)!}{(n+m)!}} e^{i m \theta} P^m_n(\cos(\phi))
+    The spherical harmonics are defined as
+
+    .. math::
+
+        Y^m_n(\theta,\phi) = \sqrt{\frac{2n+1}{4\pi} \frac{(n-m)!}{(n+m)!}}
+          e^{i m \theta} P^m_n(\cos(\phi))
+
+    where :math:`P_n^m` are the associated Legendre functions; see `lpmv`.
 
     Parameters
     ----------
-    m : int
-       ``|m| <= n``; the order of the harmonic.
-    n : int
-       where `n` >= 0; the degree of the harmonic.  This is often called
-       ``l`` (lower case L) in descriptions of spherical harmonics.
-    theta : float
-       [0, 2*pi]; the azimuthal (longitudinal) coordinate.
-    phi : float
-       [0, pi]; the polar (colatitudinal) coordinate.
+    m : array_like
+        Order of the harmonic (int); must have ``|m| <= n``.
+    n : array_like
+       Degree of the harmonic (int); must have ``n >= 0``. This is
+       often denoted by ``l`` (lower case L) in descriptions of
+       spherical harmonics.
+    theta : array_like
+       Azimuthal (longitudinal) coordinate; must be in ``[0, 2*pi]``.
+    phi : array_like
+       Polar (colatitudinal) coordinate; must be in ``[0, pi]``.
 
     Returns
     -------
     y_mn : complex float
-       The harmonic :math:`Y^m_n` sampled at `theta` and `phi`
+       The harmonic :math:`Y^m_n` sampled at ``theta`` and ``phi``.
 
     Notes
     -----
-    There are different conventions for the meaning of input arguments
-    `theta` and `phi`.  We take `theta` to be the azimuthal angle and
-    `phi` to be the polar angle.  It is common to see the opposite
-    convention - that is `theta` as the polar angle and `phi` as the
-    azimuthal angle.
+    There are different conventions for the meanings of the input
+    arguments ``theta`` and ``phi``. In SciPy ``theta`` is the
+    azimuthal angle and ``phi`` is the polar angle. It is common to
+    see the opposite convention, that is, ``theta`` as the polar angle
+    and ``phi`` as the azimuthal angle.
+
+    Note that SciPy's spherical harmonics include the Condon-Shortley
+    phase [2]_ because it is part of `lpmv`.
+
+    With SciPy's conventions, the first several spherical harmonics
+    are
+
+    .. math::
+
+        Y_0^0(\theta, \phi) &= \frac{1}{2} \sqrt{\frac{1}{\pi}} \\
+        Y_1^{-1}(\theta, \phi) &= \frac{1}{2} \sqrt{\frac{3}{2\pi}}
+                                    e^{-i\theta} \sin(\phi) \\
+        Y_1^0(\theta, \phi) &= \frac{1}{2} \sqrt{\frac{3}{\pi}}
+                                 \cos(\phi) \\
+        Y_1^1(\theta, \phi) &= -\frac{1}{2} \sqrt{\frac{3}{2\pi}}
+                                 e^{i\theta} \sin(\phi).
 
     References
     ----------
-    .. [1] Digital Library of Mathematical Functions, 14.30. http://dlmf.nist.gov/14.30
+    .. [1] Digital Library of Mathematical Functions, 14.30.
+           http://dlmf.nist.gov/14.30
+    .. [2] https://en.wikipedia.org/wiki/Spherical_harmonics#Condon.E2.80.93Shortley_phase
     """)
 
 add_newdoc("scipy.special", "_ellip_harm",
@@ -176,6 +213,25 @@ add_newdoc("scipy.special", "airy",
     .. [2] Donald E. Amos, "AMOS, A Portable Package for Bessel Functions
            of a Complex Argument and Nonnegative Order",
            http://netlib.org/amos/.org/amos/
+
+    Examples
+    --------
+    Compute the Airy functions on the interval [-15, 5].
+
+    >>> from scipy import special
+    >>> x = np.linspace(-15, 5, 201)
+    >>> ai, aip, bi, bip = special.airy(x)
+
+    Plot Ai(x) and Bi(x).
+
+    >>> import matplotlib.pyplot as plt
+    >>> plt.plot(x, ai, 'r', label='Ai(x)')
+    >>> plt.plot(x, bi, 'b--', label='Bi(x)')
+    >>> plt.ylim(-0.5, 1.0)
+    >>> plt.grid()
+    >>> plt.legend(loc='upper left')
+    >>> plt.show()
+
     """)
 
 add_newdoc("scipy.special", "airye",
@@ -188,8 +244,8 @@ add_newdoc("scipy.special", "airye",
 
         eAi  = Ai  * exp(2.0/3.0*z*sqrt(z))
         eAip = Aip * exp(2.0/3.0*z*sqrt(z))
-        eBi  = Bi  * exp(-abs((2.0/3.0*z*sqrt(z)).real))
-        eBip = Bip * exp(-abs((2.0/3.0*z*sqrt(z)).real))
+        eBi  = Bi  * exp(-abs(2.0/3.0*(z*sqrt(z)).real))
+        eBip = Bip * exp(-abs(2.0/3.0*(z*sqrt(z)).real))
 
     Parameters
     ----------
@@ -386,8 +442,8 @@ add_newdoc("scipy.special", "bdtrik",
     Formula 26.5.24 of [1]_ is used to reduce the binomial distribution to the
     cumulative incomplete beta distribution.
 
-    Computation of `k` involves a seach for a value that produces the desired
-    value of `y`.  The search relies on the monotinicity of `y` with `k`.
+    Computation of `k` involves a search for a value that produces the desired
+    value of `y`.  The search relies on the monotonicity of `y` with `k`.
 
     Wrapper for the CDFLIB [2]_ Fortran routine `cdfbin`.
 
@@ -436,8 +492,8 @@ add_newdoc("scipy.special", "bdtrin",
     Formula 26.5.24 of [1]_ is used to reduce the binomial distribution to the
     cumulative incomplete beta distribution.
 
-    Computation of `n` involves a seach for a value that produces the desired
-    value of `y`.  The search relies on the monotinicity of `y` with `n`.
+    Computation of `n` involves a search for a value that produces the desired
+    value of `y`.  The search relies on the monotonicity of `y` with `n`.
 
     Wrapper for the CDFLIB [2]_ Fortran routine `cdfbin`.
 
@@ -460,7 +516,7 @@ add_newdoc("scipy.special", "binom",
     See Also
     --------
     comb : The number of combinations of N things taken k at a time.
-    
+
     """)
 
 add_newdoc("scipy.special", "btdtria",
@@ -501,9 +557,9 @@ add_newdoc("scipy.special", "btdtria",
     Wrapper for the CDFLIB [1]_ Fortran routine `cdfbet`.
 
     The cumulative distribution function `p` is computed using a routine by
-    DiDinato and Morris [2]_.  Computation of `a` involves a seach for a value
+    DiDinato and Morris [2]_.  Computation of `a` involves a search for a value
     that produces the desired value of `p`.  The search relies on the
-    monotinicity of `p` with `a`.
+    monotonicity of `p` with `a`.
 
     References
     ----------
@@ -554,9 +610,9 @@ add_newdoc("scipy.special", "btdtrib",
     Wrapper for the CDFLIB [1]_ Fortran routine `cdfbet`.
 
     The cumulative distribution function `p` is computed using a routine by
-    DiDinato and Morris [2]_.  Computation of `b` involves a seach for a value
+    DiDinato and Morris [2]_.  Computation of `b` involves a search for a value
     that produces the desired value of `p`.  The search relies on the
-    monotinicity of `p` with `b`.
+    monotonicity of `p` with `b`.
 
     References
     ----------
@@ -1038,14 +1094,14 @@ add_newdoc("scipy.special", "dawsn",
     """)
 
 add_newdoc("scipy.special", "ellipe",
-    """
+    r"""
     ellipe(m)
 
     Complete elliptic integral of the second kind
 
     This function is defined as
 
-    .. math:: E(m) = \\int_0^{\\pi/2} [1 - m \\sin(t)^2]^{1/2} dt
+    .. math:: E(m) = \int_0^{\pi/2} [1 - m \sin(t)^2]^{1/2} dt
 
     Parameters
     ----------
@@ -1063,14 +1119,20 @@ add_newdoc("scipy.special", "ellipe",
 
     For `m > 0` the computation uses the approximation,
 
-    .. math:: E(m) \\approx P(1-m) - (1-m) \\log(1-m) Q(1-m),
+    .. math:: E(m) \approx P(1-m) - (1-m) \log(1-m) Q(1-m),
 
     where :math:`P` and :math:`Q` are tenth-order polynomials.  For
     `m < 0`, the relation
 
-    .. math:: E(m) = E(m/(m - 1)) \\sqrt(1-m)
+    .. math:: E(m) = E(m/(m - 1)) \sqrt(1-m)
 
     is used.
+
+    The parameterization in terms of :math:`m` follows that of section
+    17.2 in [2]_. Other parameterizations in terms of the
+    complementary parameter :math:`1 - m`, modular angle
+    :math:`\sin^2(\alpha) = m`, or modulus :math:`k^2 = m` are also
+    used, so be careful that you choose the correct parameter.
 
     See Also
     --------
@@ -1083,17 +1145,20 @@ add_newdoc("scipy.special", "ellipe",
     ----------
     .. [1] Cephes Mathematical Functions Library,
            http://www.netlib.org/cephes/index.html
+    .. [2] Milton Abramowitz and Irene A. Stegun, eds.
+           Handbook of Mathematical Functions with Formulas,
+           Graphs, and Mathematical Tables. New York: Dover, 1972.
     """)
 
 add_newdoc("scipy.special", "ellipeinc",
-    """
+    r"""
     ellipeinc(phi, m)
 
     Incomplete elliptic integral of the second kind
 
     This function is defined as
 
-    .. math:: E(\\phi, m) = \\int_0^{\\phi} [1 - m \\sin(t)^2]^{1/2} dt
+    .. math:: E(\phi, m) = \int_0^{\phi} [1 - m \sin(t)^2]^{1/2} dt
 
     Parameters
     ----------
@@ -1114,6 +1179,12 @@ add_newdoc("scipy.special", "ellipeinc",
 
     Computation uses arithmetic-geometric means algorithm.
 
+    The parameterization in terms of :math:`m` follows that of section
+    17.2 in [2]_. Other parameterizations in terms of the
+    complementary parameter :math:`1 - m`, modular angle
+    :math:`\sin^2(\alpha) = m`, or modulus :math:`k^2 = m` are also
+    used, so be careful that you choose the correct parameter.
+
     See Also
     --------
     ellipkm1 : Complete elliptic integral of the first kind, near `m` = 1
@@ -1125,6 +1196,9 @@ add_newdoc("scipy.special", "ellipeinc",
     ----------
     .. [1] Cephes Mathematical Functions Library,
            http://www.netlib.org/cephes/index.html
+    .. [2] Milton Abramowitz and Irene A. Stegun, eds.
+           Handbook of Mathematical Functions with Formulas,
+           Graphs, and Mathematical Tables. New York: Dover, 1972.
     """)
 
 add_newdoc("scipy.special", "ellipj",
@@ -1231,14 +1305,14 @@ add_newdoc("scipy.special", "ellipkm1",
     """)
 
 add_newdoc("scipy.special", "ellipkinc",
-    """
+    r"""
     ellipkinc(phi, m)
 
     Incomplete elliptic integral of the first kind
 
     This function is defined as
 
-    .. math:: K(\\phi, m) = \\int_0^{\\phi} [1 - m \\sin(t)^2]^{-1/2} dt
+    .. math:: K(\phi, m) = \int_0^{\phi} [1 - m \sin(t)^2]^{-1/2} dt
 
     This function is also called `F(phi, m)`.
 
@@ -1260,6 +1334,12 @@ add_newdoc("scipy.special", "ellipkinc",
     Wrapper for the Cephes [1]_ routine `ellik`.  The computation is
     carried out using the arithmetic-geometric mean algorithm.
 
+    The parameterization in terms of :math:`m` follows that of section
+    17.2 in [2]_. Other parameterizations in terms of the
+    complementary parameter :math:`1 - m`, modular angle
+    :math:`\sin^2(\alpha) = m`, or modulus :math:`k^2 = m` are also
+    used, so be careful that you choose the correct parameter.
+
     See Also
     --------
     ellipkm1 : Complete elliptic integral of the first kind, near `m` = 1
@@ -1271,6 +1351,9 @@ add_newdoc("scipy.special", "ellipkinc",
     ----------
     .. [1] Cephes Mathematical Functions Library,
            http://www.netlib.org/cephes/index.html
+    .. [2] Milton Abramowitz and Irene A. Stegun, eds.
+           Handbook of Mathematical Functions with Formulas,
+           Graphs, and Mathematical Tables. New York: Dover, 1972.
     """)
 
 add_newdoc("scipy.special", "entr",
@@ -1755,7 +1838,7 @@ add_newdoc("scipy.special", "eval_sh_chebyt",
     roots_sh_chebyt : roots and quadrature weights of shifted
                       Chebyshev polynomials of the first kind
     sh_chebyt : shifted Chebyshev polynomial object
-    eval_chebyt : evalaute Chebyshev polynomials of the first kind
+    eval_chebyt : evaluate Chebyshev polynomials of the first kind
     numpy.polynomial.chebyshev.Chebyshev : Chebyshev series
     """)
 
@@ -2082,6 +2165,10 @@ add_newdoc('scipy.special', 'expit',
         An ndarray of the same shape as x. Its entries
         are expit of the corresponding entry of x.
 
+    See Also
+    --------
+    logit
+
     Notes
     -----
     As a ufunc expit takes a number of optional
@@ -2089,6 +2176,30 @@ add_newdoc('scipy.special', 'expit',
     see `ufuncs <https://docs.scipy.org/doc/numpy/reference/ufuncs.html>`_
 
     .. versionadded:: 0.10.0
+
+    Examples
+    --------
+    >>> from scipy.special import expit, logit
+
+    >>> expit([-np.inf, -1.5, 0, 1.5, np.inf])
+    array([ 0.        ,  0.18242552,  0.5       ,  0.81757448,  1.        ])
+
+    `logit` is the inverse of `expit`:
+
+    >>> logit(expit([-2.5, 0, 3.1, 5.0]))
+    array([-2.5,  0. ,  3.1,  5. ])
+
+    Plot expit(x) for x in [-6, 6]:
+
+    >>> import matplotlib.pyplot as plt
+    >>> x = np.linspace(-6, 6, 121)
+    >>> y = expit(x)
+    >>> plt.plot(x, y)
+    >>> plt.grid()
+    >>> plt.xlim(-6, 6)
+    >>> plt.xlabel('x')
+    >>> plt.title('expit(x)')
+    >>> plt.show()
 
     """)
 
@@ -2327,6 +2438,50 @@ add_newdoc("scipy.special", "gamma",
     The gamma function is often referred to as the generalized
     factorial since ``z*gamma(z) = gamma(z+1)`` and ``gamma(n+1) =
     n!`` for natural number *n*.
+
+    Parameters
+    ----------
+    z : float or complex array_like
+
+    Returns
+    -------
+    float or complex
+        The value(s) of gamma(z)
+
+    Examples
+    --------
+    >>> from scipy.special import gamma, factorial
+
+    >>> gamma([0, 0.5, 1, 5])
+    array([         inf,   1.77245385,   1.        ,  24.        ])
+
+    >>> z = 2.5 + 1j
+    >>> gamma(z)
+    (0.77476210455108352+0.70763120437959293j)
+    >>> gamma(z+1), z*gamma(z)  # Recurrence property
+    ((1.2292740569981171+2.5438401155000685j),
+     (1.2292740569981158+2.5438401155000658j))
+
+    >>> gamma(0.5)**2  # gamma(0.5) = sqrt(pi)
+    3.1415926535897927
+
+    Plot gamma(x) for real x
+
+    >>> x = np.linspace(-3.5, 5.5, 2251)
+    >>> y = gamma(x)
+
+    >>> import matplotlib.pyplot as plt
+    >>> plt.plot(x, y, 'b', alpha=0.6, label='gamma(x)')
+    >>> k = np.arange(1, 7)
+    >>> plt.plot(k, factorial(k-1), 'k*', alpha=0.6,
+    ...          label='(x-1)!, x = 1, 2, ...')
+    >>> plt.xlim(-3.5, 5.5)
+    >>> plt.ylim(-10, 25)
+    >>> plt.grid()
+    >>> plt.xlabel('x')
+    >>> plt.legend(loc='lower right')
+    >>> plt.show()
+
     """)
 
 add_newdoc("scipy.special", "gammainc",
@@ -2354,7 +2509,7 @@ add_newdoc("scipy.special", "gammainc",
     gammaincc : regularized upper incomplete gamma function
     gammaincinv : inverse to ``gammainc`` versus ``x``
     gammainccinv : inverse to ``gammaincc`` versus ``x``
-        
+
     References
     ----------
     .. [1] Maddock et. al., "Incomplete Gamma Functions",
@@ -2386,7 +2541,7 @@ add_newdoc("scipy.special", "gammaincc",
     gammainc : regularized lower incomplete gamma function
     gammaincinv : inverse to ``gammainc`` versus ``x``
     gammainccinv : inverse to ``gammaincc`` versus ``x``
-        
+
     References
     ----------
     .. [1] Maddock et. al., "Incomplete Gamma Functions",
@@ -2411,9 +2566,32 @@ add_newdoc("scipy.special", "gammaincinv",
     Returns `x` such that ``gammainc(a, x) = y``.
     """)
 
-add_newdoc("scipy.special", "_gammaln",
+add_newdoc("scipy.special", "gammaln",
     """
-    Internal function, use ``gammaln`` instead.
+    Logarithm of the absolute value of the Gamma function.
+
+    Parameters
+    ----------
+    x : array-like
+        Values on the real line at which to compute ``gammaln``
+
+    Returns
+    -------
+    gammaln : ndarray
+        Values of ``gammaln`` at x.
+
+    See Also
+    --------
+    gammasgn : sign of the gamma function
+    loggamma : principal branch of the logarithm of the gamma function
+
+    Notes
+    -----
+    When used in conjunction with `gammasgn`, this function is useful
+    for working in logspace on the real axis without having to deal with
+    complex numbers, via the relation ``exp(gammaln(x)) = gammasgn(x)*gamma(x)``.
+
+    For complex-valued log-gamma, use `loggamma` instead of `gammaln`.
     """)
 
 add_newdoc("scipy.special", "gammasgn",
@@ -2570,9 +2748,9 @@ add_newdoc("scipy.special", "gdtria",
     Wrapper for the CDFLIB [1]_ Fortran routine `cdfgam`.
 
     The cumulative distribution function `p` is computed using a routine by
-    DiDinato and Morris [2]_.  Computation of `a` involves a seach for a value
+    DiDinato and Morris [2]_.  Computation of `a` involves a search for a value
     that produces the desired value of `p`.  The search relies on the
-    monotinicity of `p` with `a`.
+    monotonicity of `p` with `a`.
 
     References
     ----------
@@ -2639,9 +2817,9 @@ add_newdoc("scipy.special", "gdtrib",
     Wrapper for the CDFLIB [1]_ Fortran routine `cdfgam`.
 
     The cumulative distribution function `p` is computed using a routine by
-    DiDinato and Morris [2]_.  Computation of `b` involves a seach for a value
+    DiDinato and Morris [2]_.  Computation of `b` involves a search for a value
     that produces the desired value of `p`.  The search relies on the
-    monotinicity of `p` with `b`.
+    monotonicity of `p` with `b`.
 
     References
     ----------
@@ -2709,9 +2887,9 @@ add_newdoc("scipy.special", "gdtrix",
     Wrapper for the CDFLIB [1]_ Fortran routine `cdfgam`.
 
     The cumulative distribution function `p` is computed using a routine by
-    DiDinato and Morris [2]_.  Computation of `x` involves a seach for a value
+    DiDinato and Morris [2]_.  Computation of `x` involves a search for a value
     that produces the desired value of `p`.  The search relies on the
-    monotinicity of `p` with `x`.
+    monotonicity of `p` with `x`.
 
     References
     ----------
@@ -2934,7 +3112,7 @@ add_newdoc("scipy.special", "huber",
 
     """)
 
-add_newdoc("scipy.special", "hyp0f1", 
+add_newdoc("scipy.special", "hyp0f1",
     r"""
     hyp0f1(v, x)
 
@@ -3424,10 +3602,10 @@ add_newdoc("scipy.special", "iv",
     expansions are applied.
 
     For complex `z` and positive `v`, the AMOS [2]_ `zbesi` routine is
-    called. It uses a power series for small `z`, the asymptitic expansion
+    called. It uses a power series for small `z`, the asymptotic expansion
     for large `abs(z)`, the Miller algorithm normalized by the Wronskian
     and a Neumann series for intermediate magnitudes, and the uniform
-    asymptitic expansions for :math:`I_v(z)` and :math:`J_v(z)` for large
+    asymptotic expansions for :math:`I_v(z)` and :math:`J_v(z)` for large
     orders.  Backward recurrence is used to generate sequences or reduce
     orders when necessary.
 
@@ -3481,9 +3659,9 @@ add_newdoc("scipy.special", "ive",
     Notes
     -----
     For positive `v`, the AMOS [1]_ `zbesi` routine is called. It uses a
-    power series for small `z`, the asymptitic expansion for large
+    power series for small `z`, the asymptotic expansion for large
     `abs(z)`, the Miller algorithm normalized by the Wronskian and a
-    Neumann series for intermediate magnitudes, and the uniform asymptitic
+    Neumann series for intermediate magnitudes, and the uniform asymptotic
     expansions for :math:`I_v(z)` and :math:`J_v(z)` for large orders.
     Backward recurrence is used to generate sequences or reduce orders when
     necessary.
@@ -3541,10 +3719,13 @@ add_newdoc("scipy.special", "j0",
     two rational functions of degree 6/6 and 7/7.
 
     This function is a wrapper for the Cephes [1]_ routine `j0`.
+    It should not to be confused with the spherical Bessel functions (see
+    `spherical_jn`).
 
     See also
     --------
     jv : Bessel function of real order and complex argument.
+    spherical_jn : spherical Bessel functions.
 
     References
     ----------
@@ -3576,10 +3757,13 @@ add_newdoc("scipy.special", "j1",
     functions of degree 5/5.
 
     This function is a wrapper for the Cephes [1]_ routine `j1`.
+    It should not to be confused with the spherical Bessel functions (see
+    `spherical_jn`).
 
     See also
     --------
     jv
+    spherical_jn : spherical Bessel functions.
 
     References
     ----------
@@ -3597,10 +3781,12 @@ add_newdoc("scipy.special", "jn",
     Notes
     -----
     `jn` is an alias of `jv`.
+    Not to be confused with the spherical Bessel functions (see `spherical_jn`).
 
     See also
     --------
     jv
+    spherical_jn : spherical Bessel functions.
 
     """)
 
@@ -3642,9 +3828,12 @@ add_newdoc("scipy.special", "jv",
     term is exactly zero for integer `v`; to improve accuracy the second
     term is explicitly omitted for `v` values such that `v = floor(v)`.
 
+    Not to be confused with the spherical Bessel functions (see `spherical_jn`).
+
     See also
     --------
     jve : :math:`J_v` with leading exponential behavior stripped off.
+    spherical_jn : spherical Bessel functions.
 
     References
     ----------
@@ -4167,6 +4356,10 @@ add_newdoc('scipy.special', 'logit',
         An ndarray of the same shape as x. Its entries
         are logit of the corresponding entry of x.
 
+    See Also
+    --------
+    expit
+
     Notes
     -----
     As a ufunc logit takes a number of optional
@@ -4175,37 +4368,84 @@ add_newdoc('scipy.special', 'logit',
 
     .. versionadded:: 0.10.0
 
+    Examples
+    --------
+    >>> from scipy.special import logit, expit
+
+    >>> logit([0, 0.25, 0.5, 0.75, 1])
+    array([       -inf, -1.09861229,  0.        ,  1.09861229,         inf])
+
+    `expit` is the inverse of `logit`:
+
+    >>> expit(logit([0.1, 0.75, 0.999]))
+    array([ 0.1  ,  0.75 ,  0.999])
+
+    Plot logit(x) for x in [0, 1]:
+
+    >>> import matplotlib.pyplot as plt
+    >>> x = np.linspace(0, 1, 501)
+    >>> y = logit(x)
+    >>> plt.plot(x, y)
+    >>> plt.grid()
+    >>> plt.ylim(-6, 6)
+    >>> plt.xlabel('x')
+    >>> plt.title('logit(x)')
+    >>> plt.show()
+
     """)
 
 add_newdoc("scipy.special", "lpmv",
-    """
+    r"""
     lpmv(m, v, x)
 
-    Associated legendre function of integer order.
+    Associated Legendre function of integer order and real degree.
+
+    Defined as
+
+    .. math::
+
+        P_v^m = (-1)^m (1 - x^2)^{m/2} \frac{d^m}{dx^m} P_v(x)
+
+    where
+
+    .. math::
+
+        P_v = \sum_{k = 0}^\infty \frac{(-v)_k (v + 1)_k}{(k!)^2}
+                \left(\frac{1 - x}{2}\right)^k
+
+    is the Legendre function of the first kind. Here :math:`(\cdot)_k`
+    is the Pochhammer symbol; see `poch`.
 
     Parameters
     ----------
-    m : int
-        Order
-    v : float
-        Degree.
-    x : float
-        Argument. Must be ``|x| <= 1``.
+    m : array_like
+        Order (int or float). If passed a float not equal to an
+        integer the function returns NaN.
+    v : array_like
+        Degree (float).
+    x : array_like
+        Argument (float). Must have ``|x| <= 1``.
 
     Returns
     -------
-    res : float
-        The value of the function.
+    pmv : ndarray
+        Value of the associated Legendre function.
 
     See Also
     --------
-    lpmn : Similar, but computes values for all orders 0..m and degrees 0..n.
-    clpmn : Similar to `lpmn` but allows a complex argument.
+    lpmn : Compute the associated Legendre function for all orders
+           ``0, ..., m`` and degrees ``0, ..., n``.
+    clpmn : Compute the associated Legendre function at complex
+            arguments.
 
     Notes
     -----
-    It is possible to extend the domain of this function to all
-    complex m, v, x, but this is not yet implemented.
+    Note that this implementation includes the Condon-Shortley phase.
+
+    References
+    ----------
+    .. [1] Zhang, Jin, "Computation of Special Functions", John Wiley
+           and Sons, Inc, 1996.
 
     """)
 
@@ -4577,7 +4817,7 @@ add_newdoc("scipy.special", "nbdtri",
     ----------
     .. [1] Cephes Mathematical Functions Library,
            http://www.netlib.org/cephes/index.html
-    
+
     """)
 
 add_newdoc("scipy.special", "nbdtrik",
@@ -4598,12 +4838,12 @@ add_newdoc("scipy.special", "nbdtrik",
         The target number of successes (positive int).
     p : array_like
         Probability of success in a single event (float).
-    
+
     Returns
     -------
     k : ndarray
         The maximum number of allowed failures such that `nbdtr(k, n, p) = y`.
-    
+
     See also
     --------
     nbdtr : Cumulative distribution function of the negative binomial.
@@ -4622,8 +4862,8 @@ add_newdoc("scipy.special", "nbdtrik",
     is used to reduce calculation of the cumulative distribution function to
     that of a regularized incomplete beta :math:`I`.
 
-    Computation of `k` involves a seach for a value that produces the desired
-    value of `y`.  The search relies on the monotinicity of `y` with `k`.
+    Computation of `k` involves a search for a value that produces the desired
+    value of `y`.  The search relies on the monotonicity of `y` with `k`.
 
     References
     ----------
@@ -4654,12 +4894,12 @@ add_newdoc("scipy.special", "nbdtrin",
         The probability of `k` or fewer failures before `n` successes (float).
     p : array_like
         Probability of success in a single event (float).
-    
+
     Returns
     -------
     n : ndarray
         The number of successes `n` such that `nbdtr(k, n, p) = y`.
-    
+
     See also
     --------
     nbdtr : Cumulative distribution function of the negative binomial.
@@ -4678,8 +4918,8 @@ add_newdoc("scipy.special", "nbdtrin",
     is used to reduce calculation of the cumulative distribution function to
     that of a regularized incomplete beta :math:`I`.
 
-    Computation of `n` involves a seach for a value that produces the desired
-    value of `y`.  The search relies on the monotinicity of `y` with `n`.
+    Computation of `n` involves a search for a value that produces the desired
+    value of `y`.  The search relies on the monotonicity of `y` with `n`.
 
     References
     ----------
@@ -5224,24 +5464,46 @@ add_newdoc("scipy.special", "pbvv",
     """)
 
 add_newdoc("scipy.special", "pbwa",
-    """
+    r"""
     pbwa(a, x)
 
-    Parabolic cylinder function W
+    Parabolic cylinder function W.
 
-    Returns the parabolic cylinder function W(a, x) in w and the
-    derivative, W'(a, x) in wp.
+    The function is a particular solution to the differential equation
 
-    .. warning::
+    .. math::
 
-       May not be accurate for large (>5) arguments in a and/or x.
+        y'' + \left(\frac{1}{4}x^2 - a\right)y = 0,
+
+    for a full definition see section 12.14 in [1]_.
+
+    Parameters
+    ----------
+    a : array_like
+        Real parameter
+    x : array_like
+        Real argument
 
     Returns
     -------
-    w
+    w : scalar or ndarray
         Value of the function
-    wp
-        Value of the derivative vs x
+    wp : scalar or ndarray
+        Value of the derivative in x
+
+    Notes
+    -----
+    The function is a wrapper for a Fortran routine by Zhang and Jin
+    [2]_. The implementation is accurate only for ``|a|, |x| < 5`` and
+    returns NaN outside that range.
+
+    References
+    ----------
+    .. [1] Digital Library of Mathematical Functions, 14.30.
+           http://dlmf.nist.gov/14.30
+    .. [2] Zhang, Shanjie and Jin, Jianming. "Computation of Special
+           Functions", John Wiley and Sons, 1996.
+           http://jin.ece.illinois.edu/specfunc.html
     """)
 
 add_newdoc("scipy.special", "pdtr",
@@ -5390,7 +5652,7 @@ add_newdoc("scipy.special", "pro_rad2",
     """
     pro_rad2(m, n, c, x)
 
-    Prolate spheroidal radial function of the secon kind and its derivative
+    Prolate spheroidal radial function of the second kind and its derivative
 
     Computes the prolate spheroidal radial function of the second kind
     and its derivative (with respect to `x`) for mode parameters m>=0
@@ -5621,7 +5883,7 @@ add_newdoc("scipy.special", "sici",
     The sine integral is
 
     .. math::
-    
+
       \int_0^x \frac{\sin{t}}{t}dt
 
     and the cosine integral is
@@ -5697,10 +5959,11 @@ add_newdoc("scipy.special", "smirnovi",
 
 add_newdoc("scipy.special", "spence",
     r"""
-    spence(z)
+    spence(z, out=None)
 
-    Spence's function, also known as the dilogarithm. It is defined to
-    be
+    Spence's function, also known as the dilogarithm.
+
+    It is defined to be
 
     .. math::
       \int_0^z \frac{\log(t)}{1 - t}dt
@@ -5710,14 +5973,25 @@ add_newdoc("scipy.special", "spence",
     analytic everywhere except the negative real axis where it has a
     branch cut.
 
-    Note that there is a different convention which defines Spence's
-    function by the integral
+    Parameters
+    ----------
+    z : array_like
+        Points at which to evaluate Spence's function
+
+    Returns
+    -------
+    s : ndarray
+        Computed values of Spence's function
+
+    Notes
+    -----
+    There is a different convention which defines Spence's function by
+    the integral
 
     .. math::
       -\int_0^z \frac{\log(1 - t)}{t}dt;
 
     this is our ``spence(1 - z)``.
-
     """)
 
 add_newdoc("scipy.special", "stdtr",
@@ -5915,13 +6189,13 @@ add_newdoc("scipy.special", "y0",
 
     Notes
     -----
-    
+
     The domain is divided into the intervals [0, 5] and (5, infinity). In the
     first interval a rational approximation :math:`R(x)` is employed to
     compute,
-    
+
     .. math::
-        
+
         Y_0(x) = R(x) + \frac{2 \log(x) J_0(x)}{\pi},
 
     where :math:`J_0` is the Bessel function of the first kind of order 0.
@@ -5974,7 +6248,7 @@ add_newdoc("scipy.special", "y1",
     j1
     yn
     yv
-    
+
     References
     ----------
     .. [1] Cephes Mathematical Functions Library,

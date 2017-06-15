@@ -571,14 +571,22 @@ def bmat(blocks, format=None, dtype=None):
                 if brow_lengths[i] == 0:
                     brow_lengths[i] = A.shape[0]
                 elif brow_lengths[i] != A.shape[0]:
-                    raise ValueError('blocks[%d,:] has incompatible '
-                                     'row dimensions' % i)
+                    msg = ('blocks[{i},:] has incompatible row dimensions. '
+                           'Got blocks[{i},{j}].shape[0] == {got}, '
+                           'expected {exp}.'.format(i=i, j=j,
+                                                    exp=brow_lengths[i],
+                                                    got=A.shape[0]))
+                    raise ValueError(msg)
 
                 if bcol_lengths[j] == 0:
                     bcol_lengths[j] = A.shape[1]
                 elif bcol_lengths[j] != A.shape[1]:
-                    raise ValueError('blocks[:,%d] has incompatible '
-                                     'column dimensions' % j)
+                    msg = ('blocks[:,{j}] has incompatible row dimensions. '
+                           'Got blocks[{i},{j}].shape[1] == {got}, '
+                           'expected {exp}.'.format(i=i, j=j,
+                                                    exp=bcol_lengths[j],
+                                                    got=A.shape[1]))
+                    raise ValueError(msg)
 
     nnz = sum(block.nnz for block in blocks[block_mask])
     if dtype is None:
@@ -692,6 +700,10 @@ def random(m, n, density=0.01, format='coo', dtype=None,
         sampled using the same random state as is used for sampling
         the sparsity structure.
 
+    Returns
+    -------
+    res : sparse matrix
+
     Examples
     --------
     >>> from scipy.sparse import random
@@ -779,9 +791,29 @@ def rand(m, n, density=0.01, format="coo", dtype=None, random_state=None):
         Random number generator or random seed. If not given, the singleton
         numpy.random will be used.
 
+    Returns
+    -------
+    res : sparse matrix
+
     Notes
     -----
     Only float types are supported for now.
 
+    See Also
+    --------
+    scipy.sparse.random : Similar function that allows a user-specified random
+        data source.
+
+    Examples
+    --------
+    >>> from scipy.sparse import rand
+    >>> matrix = rand(3, 4, density=0.25, format="csr", random_state=42)
+    >>> matrix
+    <3x4 sparse matrix of type '<type 'numpy.float64'>'
+       with 3 stored elements in Compressed Sparse Row format>
+    >>> matrix.todense()
+    matrix([[ 0.        ,  0.59685016,  0.779691  ,  0.        ],
+            [ 0.        ,  0.        ,  0.        ,  0.44583275],
+            [ 0.        ,  0.        ,  0.        ,  0.        ]])
     """
     return random(m, n, density, format, dtype, random_state)

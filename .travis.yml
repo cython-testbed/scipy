@@ -56,10 +56,16 @@ matrix:
         - COVERAGE=
         - NUMPYSPEC="numpy==1.8.2"
         - USE_SDIST=1
+        - OPTIMIZE=-OO
     - python: 2.7
       env:
         - TESTMODE=full
         - COVERAGE=--coverage
+        - NUMPYSPEC=numpy
+    - python: 3.6
+      env:
+        - TESTMODE=fast
+        - COVERAGE=
         - NUMPYSPEC=numpy
 addons:
   apt:
@@ -75,6 +81,7 @@ cache:
   directories:
     - $HOME/.ccache
 before_install:
+  - export PYTHONFAULTHANDLER=1
   - export PATH=/usr/lib/ccache:$PATH
   - uname -a
   - free -m
@@ -96,7 +103,7 @@ before_install:
   - export LD_LIBRARY_PATH=$HOME/.local/lib
   # End install gmpy2 dependencies
   # Speed up install by not compiling Cython
-  - travis_retry pip install --install-option="--no-cython-compile" https://github.com/cython/cython/archive/0.25.1.zip
+  - travis_retry pip install --install-option="--no-cython-compile"  https://github.com/cython/cython/archive/0.25.1.zip
   - travis_retry pip install $NUMPYSPEC
   - travis_retry pip install nose mpmath argparse Pillow codecov
   - travis_retry pip install --upgrade pip setuptools
@@ -105,7 +112,7 @@ before_install:
   - if [ "${USE_WHEEL}" == "1" ]; then pip install wheel; fi
   - |
     if [ "${REFGUIDE_CHECK}" == "1" ]; then
-        travis_retry pip install matplotlib Sphinx==1.2.3
+        travis_retry pip install matplotlib Sphinx==1.5.5
     fi
   - python -V
   - popd
@@ -145,7 +152,7 @@ after_success:
         eval `ssh-agent -s`
         ssh-add tools/ci/devdocs-deploy.key
         git clone git@github.com:scipy/devdocs.git devdocs
-        python -u $OPTIMIZE runtests.py -g --shell -- -c 'make -C doc html-scipyorg'
+        python -u $OPTIMIZE runtests.py -g --shell -- -c 'make -C doc PYTHON=python html-scipyorg'
         pushd devdocs
         (git checkout --orphan tmp && git branch -D gh-pages || true)
         git checkout --orphan gh-pages

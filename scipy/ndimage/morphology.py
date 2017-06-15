@@ -880,7 +880,7 @@ def binary_propagation(input, structure=None, mask=None,
     Notes
     -----
     This function is functionally equivalent to calling binary_dilation
-    with the number of iterations less then one: iterative dilation until
+    with the number of iterations less than one: iterative dilation until
     the result does not change anymore.
 
     The succession of an erosion and propagation inside the original image
@@ -1758,8 +1758,8 @@ def distance_transform_bf(input, metric="euclidean", sampling=None,
     Distance transform function by a brute force algorithm.
 
     This function calculates the distance transform of the `input`, by
-    replacing each background element (zero values), with its
-    shortest distance to the foreground (any element non-zero).
+    replacing each foreground (non-zero) element, with its
+    shortest distance to the background (any zero-valued element).
 
     In addition to the distance transform, the feature transform can
     be calculated. In this case the index of the closest background

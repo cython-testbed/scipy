@@ -9,7 +9,7 @@ from numpy.testing import assert_raises, assert_array_almost_equal
 from numpy.testing.noseclasses import KnownFailureTest
 
 from scipy.linalg import solve_sylvester
-from scipy.linalg import solve_lyapunov, solve_discrete_lyapunov
+from scipy.linalg import solve_continuous_lyapunov, solve_discrete_lyapunov
 from scipy.linalg import solve_continuous_are, solve_discrete_are
 from scipy.linalg import block_diag, solve
 
@@ -76,8 +76,15 @@ class TestSolveLyapunov(TestCase):
          (np.array(np.matrix([0, 3]).T * np.matrix([0, 3]).T.T))),
         ]
 
+    def test_continuous_squareness_and_shape(self):
+        nsq = np.ones((3, 2))
+        sq = np.eye(3)
+        assert_raises(ValueError, solve_continuous_lyapunov, nsq, sq)
+        assert_raises(ValueError, solve_continuous_lyapunov, sq, nsq)
+        assert_raises(ValueError, solve_continuous_lyapunov, sq, np.eye(2))
+
     def check_continuous_case(self, a, q):
-        x = solve_lyapunov(a, q)
+        x = solve_continuous_lyapunov(a, q)
         assert_array_almost_equal(
                           np.dot(a, x) + np.dot(x, a.conj().transpose()), q)
 
@@ -277,8 +284,8 @@ def test_solve_continuous_are():
     #
     # If the test is failing use "None" for that entry.
     #
-    min_decimal = (14, 12, 14, 14, 11, 7, None, 5, 7, 14, 14,
-                   None, 10, 14, 13, 14, None, 12, None, None)
+    min_decimal = (14, 12, 13, 14, 11, 6, None, 5, 7, 14, 14,
+                   None, 9, 14, 13, 14, None, 12, None, None)
 
     def _test_factory(case, dec):
         """Checks if 0 = XA + A'X - XB(R)^{-1} B'X + Q is true"""
@@ -497,7 +504,7 @@ def test_solve_discrete_are():
     #
     # If the test is failing use "None" for that entry.
     #
-    min_decimal = (12, 14, 14, 14, 13, 16, 18, 15, 15, 13,
+    min_decimal = (12, 14, 13, 14, 13, 16, 18, 14, 15, 13,
                    14, 13, 13, 14, 12, 2, 5, 6, 10)
 
     def _test_factory(case, dec):
@@ -568,6 +575,11 @@ def test_solve_generalized_continuous_are():
 
 
 def test_solve_generalized_discrete_are():
+    mat20170120 = np.load(os.path.join(
+                             os.path.abspath(os.path.dirname(__file__)),
+                             'data',
+                             'gendare_20170120_data.npz'))
+
     cases = [
         # Two random examples differ by s term
         # in the absence of any literature for demanding examples.
@@ -596,10 +608,19 @@ def test_solve_generalized_discrete_are():
                    [7.093648e-01, 6.797027e-01, 1.189977e-01],
                    [7.546867e-01, 6.550980e-01, 4.983641e-01]]),
          np.ones((3, 2)),
-         None)
+         None),
+        # user-reported (under PR-6616) 20-Jan-2017
+        # tests against the case where E is None but S is provided
+        (mat20170120['A'],
+         mat20170120['B'],
+         mat20170120['Q'],
+         mat20170120['R'],
+         None,
+         mat20170120['S'],
+         None),
         ]
 
-    min_decimal = (11, 11)
+    min_decimal = (11, 11, 16)
 
     def _test_factory(case, dec):
         """Checks if X = A'XA-(A'XB)(R+B'XB)^-1(B'XA)+Q) is true"""
@@ -608,6 +629,10 @@ def test_solve_generalized_discrete_are():
             raise KnownFailureTest(knownfailure)
 
         x = solve_discrete_are(a, b, q, r, e, s)
+        if e is None:
+            e = np.eye(a.shape[0])
+        if s is None:
+            s = np.zeros_like(b)
         res = a.conj().T.dot(x.dot(a)) - e.conj().T.dot(x.dot(e)) + q
         res -= (a.conj().T.dot(x.dot(b)) + s).dot(
                     solve(r+b.conj().T.dot(x.dot(b)),

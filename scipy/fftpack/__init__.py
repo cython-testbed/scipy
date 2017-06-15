@@ -92,8 +92,6 @@ __all__ = ['fft','ifft','fftn','ifftn','rfft','irfft',
            'next_fast_len',
            ]
 
-from .fftpack_version import fftpack_version as __version__
-
 from .basic import *
 from .pseudo_diffs import *
 from .helper import *
@@ -108,4 +106,3 @@ __all__.extend(['dct', 'idct', 'dst', 'idst'])
 
 from numpy.testing import Tester
 test = Tester().test
-bench = Tester().bench

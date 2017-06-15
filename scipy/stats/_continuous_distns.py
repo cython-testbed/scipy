@@ -24,6 +24,14 @@ from ._distn_infrastructure import (get_distribution_names, _kurtosis,
 from ._constants import _XMIN, _EULER, _ZETA3, _XMAX, _LOGXMAX
 
 
+# In numpy 1.12 and above, np.power refuses to raise integers to negative
+# powers, and `np.float_power` is a new replacement. 
+try:
+    float_power = np.float_power
+except AttributeError:
+    float_power = np.power
+
+
 ## Kolmogorov-Smirnov one-sided and two-sided test statistics
 class ksone_gen(rv_continuous):
     """General Kolmogorov-Smirnov one-sided test.
@@ -272,15 +280,13 @@ class arcsine_gen(rv_continuous):
 
         arcsine.pdf(x) = 1/(pi*sqrt(x*(1-x)))
 
-    for ``0 < x < 1``.
+    for ``0 <= x <= 1``.
 
     %(after_notes)s
 
     %(example)s
 
     """
-    _support_mask = rv_continuous._open_support_mask
-
     def _pdf(self, x):
         return 1.0/np.pi/np.sqrt(x*(1-x))
 
@@ -1154,10 +1160,10 @@ class exponnorm_gen(rv_continuous):
 
     An alternative parameterization of this distribution (for example, in
     `Wikipedia <http://en.wikipedia.org/wiki/Exponentially_modified_Gaussian_distribution>`_)
-    involves three parameters, :math:`\mu`, :math:`\lambda` and :math:`\sigma`.
+    involves three parameters, :math:`\\mu`, :math:`\\lambda` and :math:`\\sigma`.
     In the present parameterization this corresponds to having ``loc`` and
-    ``scale`` equal to :math:`\mu` and :math:`\sigma`, respectively, and
-    shape parameter :math:`K = 1/\sigma\lambda`.
+    ``scale`` equal to :math:`\\mu` and :math:`\\sigma`, respectively, and
+    shape parameter :math:`K = 1/\\sigma\\lambda`.
 
     .. versionadded:: 0.16.0
 
@@ -1890,13 +1896,19 @@ class genextreme_gen(rv_continuous):
         v = np.where(c < -0.5, np.nan, g1**2.0*gam2k)
 
         # skewness
-        sk1 = np.where(c < -1./3, np.nan,
-                       np.sign(c)*(-g3+(g2+2*g2mg12)*g1)/((g2mg12)**(3./2.)))
+        sk1 = _lazywhere(c >= -1./3,
+                         (c, g1, g2, g3, g2mg12),
+                         lambda c, g1, g2, g3, g2gm12:
+                             np.sign(c)*(-g3 + (g2 + 2*g2mg12)*g1)/g2mg12**1.5,
+                         fillvalue=np.nan)
         sk = np.where(abs(c) <= eps**0.29, 12*np.sqrt(6)*_ZETA3/np.pi**3, sk1)
 
         # kurtosis
-        ku1 = np.where(c < -1./4, np.nan,
-                       (g4+(-4*g3+3*(g2+g2mg12)*g1)*g1)/((g2mg12)**2))
+        ku1 = _lazywhere(c >= -1./4,
+                         (g1, g2, g3, g4, g2mg12),
+                         lambda g1, g2, g3, g4, g2mg12:
+                             (g4 + (-4*g3 + 3*(g2 + g2mg12)*g1)*g1)/g2mg12**2,
+                         fillvalue=np.nan)
         ku = np.where(abs(c) <= (eps)**0.23, 12.0/5.0, ku1-3.0)
         return m, v, sk, ku
 
@@ -3458,7 +3470,7 @@ class kappa4_gen(rv_continuous):
                     np.logical_and(h <= 0, k < 0)]
 
         def f0(h, k):
-            return (1.0 - h**(-k))/k
+            return (1.0 - float_power(h, -k))/k
 
         def f1(h, k):
             return np.log(h)
@@ -3984,6 +3996,9 @@ class pareto_gen(rv_continuous):
 
     def _ppf(self, q, b):
         return pow(1-q, -1.0/b)
+
+    def _sf(self, x, b):
+        return x**(-b)
 
     def _stats(self, b, moments='mv'):
         mu, mu2, g1, g2 = None, None, None, None
@@ -5206,8 +5221,208 @@ class halfgennorm_gen(rv_continuous):
 halfgennorm = halfgennorm_gen(a=0, name='halfgennorm')
 
 
+def _argus_phi(chi):
+    """
+    Utility function for the argus distribution
+    used in the CDF and norm of the Argus Funktion
+    """
+    return _norm_cdf(chi) - chi * _norm_pdf(chi) - 0.5
+
+
+class argus_gen(rv_continuous):
+    """
+    Argus distribution
+
+    %(before_notes)s
+
+    Notes
+    -----
+    The probability density function for `argus` is::
+
+        argus.pdf(x, chi) = chi**3 / (sqrt(2*pi) * Psi(chi)) * x * sqrt(1-x**2) * exp(- 0.5 * chi**2 * (1 - x**2))
+
+        where:
+                 Psi(chi) = Phi(chi) - chi * phi(chi) - 1/2
+                 with Phi and phi being the CDF and PDF of a standard normal distribution, respectively.
+
+    `argus` takes ``chi`` as shape a parameter.
+
+    References
+    ----------
+
+    .. [1] "ARGUS distribution",
+           https://en.wikipedia.org/wiki/ARGUS_distribution
+
+    %(after_notes)s
+    
+    .. versionadded:: 0.19.0
+
+    %(example)s
+    """
+    def _pdf(self, x, chi):
+        """
+        Return PDF of the argus function
+        """
+        y = 1.0 - x**2
+        return chi**3 / (_norm_pdf_C * _argus_phi(chi)) * x * np.sqrt(y) * np.exp(-chi**2 * y / 2)
+
+    def _cdf(self, x, chi):
+        """
+        Return CDF of the argus function
+        """
+        return 1.0 - self._sf(x, chi)
+
+    def _sf(self, x, chi):
+        """
+        Return survival function of the argus function
+        """
+        return _argus_phi(chi * np.sqrt(1 - x**2)) / _argus_phi(chi)
+argus = argus_gen(name='argus', longname="An Argus Function", a=0.0, b=1.0)
+
+
+class rv_histogram(rv_continuous):
+    """
+    Generates a distribution given by a histogram.
+    This is useful to generate a template distribution from a binned
+    datasample.
+
+    As a subclass of the `rv_continuous` class, `rv_histogram` inherits from it
+    a collection of generic methods (see `rv_continuous` for the full list),
+    and implements them based on the properties of the provided binned
+    datasample.
+        
+    Parameters
+    ----------
+    histogram : tuple of array_like
+      Tuple containing two array_like objects
+      The first containing the content of n bins
+      The second containing the (n+1) bin boundaries
+      In particular the return value np.histogram is accepted
+
+    Notes
+    -----
+    There are no additional shape parameters except for the loc and scale.
+    The pdf is defined as a stepwise function from the provided histogram
+    The cdf is a linear interpolation of the pdf.
+
+    .. versionadded:: 0.19.0
+
+    Examples
+    --------
+
+    Create a scipy.stats distribution from a numpy histogram
+
+    >>> import scipy.stats
+    >>> import numpy as np
+    >>> data = scipy.stats.norm.rvs(size=100000, loc=0, scale=1.5, random_state=123)
+    >>> hist = np.histogram(data, bins=100)
+    >>> hist_dist = scipy.stats.rv_histogram(hist)
+
+    Behaves like an ordinary scipy rv_continuous distribution
+
+    >>> hist_dist.pdf(1.0)
+    0.20538577847618705
+    >>> hist_dist.cdf(2.0)
+    0.90818568543056499
+
+    PDF is zero above (below) the highest (lowest) bin of the histogram,
+    defined by the max (min) of the original dataset
+
+    >>> hist_dist.pdf(np.max(data))
+    0.0
+    >>> hist_dist.cdf(np.max(data))
+    1.0
+    >>> hist_dist.pdf(np.min(data))
+    7.7591907244498314e-05
+    >>> hist_dist.cdf(np.min(data))
+    0.0
+
+    PDF and CDF follow the histogram
+
+    >>> import matplotlib.pyplot as plt
+    >>> X = np.linspace(-5.0, 5.0, 100)
+    >>> plt.title("PDF from Template")
+    >>> plt.hist(data, normed=True, bins=100)
+    >>> plt.plot(X, hist_dist.pdf(X), label='PDF')
+    >>> plt.plot(X, hist_dist.cdf(X), label='CDF')
+    >>> plt.show()
+
+    """
+    _support_mask = rv_continuous._support_mask
+
+    def __init__(self, histogram, *args, **kwargs):
+        """
+        Create a new distribution using the given histogram
+
+        Parameters
+        ----------
+        histogram : tuple of array_like
+          Tuple containing two array_like objects
+          The first containing the content of n bins
+          The second containing the (n+1) bin boundaries
+          In particular the return value np.histogram is accepted
+        """
+        self._histogram = histogram
+        if len(histogram) != 2:
+            raise ValueError("Expected length 2 for parameter histogram")
+        self._hpdf = np.asarray(histogram[0])
+        self._hbins = np.asarray(histogram[1])
+        if len(self._hpdf) + 1 != len(self._hbins):
+            raise ValueError("Number of elements in histogram content "
+                             "and histogram boundaries do not match, "
+                             "expected n and n+1.")
+        self._hbin_widths = self._hbins[1:] - self._hbins[:-1]
+        self._hpdf = self._hpdf / float(np.sum(self._hpdf * self._hbin_widths))
+        self._hcdf = np.cumsum(self._hpdf * self._hbin_widths)
+        self._hpdf = np.hstack([0.0, self._hpdf, 0.0])
+        self._hcdf = np.hstack([0.0, self._hcdf])
+        # Set support
+        kwargs['a'] = self._hbins[0]
+        kwargs['b'] = self._hbins[-1]
+        super(rv_histogram, self).__init__(*args, **kwargs)
+
+    def _pdf(self, x):
+        """
+        PDF of the histogram
+        """
+        return self._hpdf[np.searchsorted(self._hbins, x, side='right')]
+
+    def _cdf(self, x):
+        """
+        CDF calculated from the histogram
+        """
+        return np.interp(x, self._hbins, self._hcdf)
+
+    def _ppf(self, x):
+        """
+        Percentile function calculated from the histogram
+        """
+        return np.interp(x, self._hcdf, self._hbins)
+
+    def _munp(self, n):
+        """Compute the n-th non-central moment."""
+        integrals = (self._hbins[1:]**(n+1) - self._hbins[:-1]**(n+1)) / (n+1)
+        return np.sum(self._hpdf[1:-1] * integrals)
+
+    def _entropy(self):
+        """Compute entropy of distribution"""
+        res = _lazywhere(self._hpdf[1:-1] > 0.0,
+                         (self._hpdf[1:-1],),
+                         np.log,
+                         0.0)
+        return -np.sum(self._hpdf[1:-1] * res * self._hbin_widths)
+
+    def _updated_ctor_param(self):
+        """
+        Set the histogram as additional constructor argument
+        """
+        dct = super(rv_histogram, self)._updated_ctor_param()
+        dct['histogram'] = self._histogram
+        return dct
+
+
 # Collect names of classes and objects in this module.
 pairs = list(globals().items())
 _distn_names, _distn_gen_names = get_distribution_names(pairs, rv_continuous)
 
-__all__ = _distn_names + _distn_gen_names
+__all__ = _distn_names + _distn_gen_names + ['rv_histogram']

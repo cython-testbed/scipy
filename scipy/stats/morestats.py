@@ -1,7 +1,3 @@
-# Author:  Travis Oliphant, 2002
-#
-# Further updates and enhancements by many SciPy developers.
-#
 from __future__ import division, print_function, absolute_import
 
 import math
@@ -1237,7 +1233,7 @@ def boxcox_normplot(x, la, lb, plot=None, N=80):
 
     if plot is not None:
         plot.plot(lmbdas, ppcc, 'x')
-        _add_axis_labels_title(plot, xlabel='$\lambda$',
+        _add_axis_labels_title(plot, xlabel='$\\lambda$',
                                ylabel='Prob Plot Corr. Coef.',
                                title='Box-Cox Normality Plot')
 
@@ -2702,7 +2698,7 @@ def _circfuncs_common(samples, high, low):
     if samples.size == 0:
         return np.nan, np.nan
 
-    ang = (samples - low)*2*pi / (high - low)
+    ang = (samples - low)*2.*pi / (high - low)
     return samples, ang
 
 
@@ -2726,6 +2722,16 @@ def circmean(samples, high=2*pi, low=0, axis=None):
     -------
     circmean : float
         Circular mean.
+        
+    Examples
+    --------
+    >>> from scipy.stats import circmean
+    >>> circmean([0.1, 2*np.pi+0.2, 6*np.pi+0.3])
+    0.2
+    
+    >>> from scipy.stats import circmean
+    >>> circmean([0.2, 1.4, 2.6], high = 1, low = 0)
+    0.4
 
     """
     samples, ang = _circfuncs_common(samples, high, low)
@@ -2765,7 +2771,13 @@ def circvar(samples, high=2*pi, low=0, axis=None):
     -----
     This uses a definition of circular variance that in the limit of small
     angles returns a number close to the 'linear' variance.
-
+    
+    Examples
+    --------
+    >>> from scipy.stats import circvar
+    >>> circvar([0, 2*np.pi/3, 5*np.pi/3])
+    2.19722457734
+    
     """
     samples, ang = _circfuncs_common(samples, high, low)
     S = sin(ang).mean(axis=axis)
@@ -2801,6 +2813,12 @@ def circstd(samples, high=2*pi, low=0, axis=None):
     -----
     This uses a definition of circular standard deviation that in the limit of
     small angles returns a number close to the 'linear' standard deviation.
+    
+    Examples
+    --------
+    >>> from scipy.stats import circstd
+    >>> circstd([0, 0.1*np.pi/2, 0.001*np.pi, 0.03*np.pi/2])
+    0.063564063306
 
     """
     samples, ang = _circfuncs_common(samples, high, low)
@@ -2809,33 +2827,3 @@ def circstd(samples, high=2*pi, low=0, axis=None):
     R = hypot(S, C)
     return ((high - low)/2.0/pi) * sqrt(-2*log(R))
 
-
-# Tests to include (from R) -- some of these already in stats.
-########
-# X Ansari-Bradley
-# X Bartlett (and Levene)
-# X Binomial
-# Y Pearson's Chi-squared (stats.chisquare)
-# Y Association Between Paired samples (stats.pearsonr, stats.spearmanr)
-#                       stats.kendalltau) -- these need work though
-# Fisher's exact test
-# X Fligner-Killeen Test
-# Y Friedman Rank Sum (stats.friedmanchisquare?)
-# Y Kruskal-Wallis
-# Y Kolmogorov-Smirnov
-# Cochran-Mantel-Haenszel Chi-Squared for Count
-# McNemar's Chi-squared for Count
-# X Mood Two-Sample
-# X Test For Equal Means in One-Way Layout (see stats.ttest also)
-# Pairwise Comparisons of proportions
-# Pairwise t tests
-# Tabulate p values for pairwise comparisons
-# Pairwise Wilcoxon rank sum tests
-# Power calculations two sample test of prop.
-# Power calculations for one and two sample t tests
-# Equal or Given Proportions
-# Trend in Proportions
-# Quade Test
-# Y Student's T Test
-# Y F Test to compare two variances
-# XY Wilcoxon Rank Sum and Signed Rank Tests
