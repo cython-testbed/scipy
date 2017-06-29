@@ -35,6 +35,9 @@ Iterating over and slicing of CSC and CSR matrices is now faster by up to ~35%.
 
 The ``tocsr`` method of COO matrices is now several times faster.
 
+The ``diagonal`` method of sparse matrices now takes a parameter, indicating
+which diagonal to return.
+
 
 `scipy.sparse.linalg` improvements
 ----------------------------------
@@ -74,6 +77,15 @@ The default value for the ``zero_phase`` keyword of `scipy.signal.decimate`
 has been changed to True.
 
 `scipy.special.gammaln` does not accept complex arguments anymore.
+
+The cross-class properties of `scipy.signal.lti` systems have been removed.
+The following properties/setters have been removed:
+
+Name - (accessing/setting has been removed) - (setting has been removed)
+
+* StateSpace - (``num``, ``den``, ``gain``) - (``zeros``, ``poles``)
+* TransferFunction (``A``, ``B``, ``C``, ``D``, ``gain``) - (``zeros``, ``poles``)
+* ZerosPolesGain (``A``, ``B``, ``C``, ``D``, ``num``, ``den``) - ()
 
 
 Other changes

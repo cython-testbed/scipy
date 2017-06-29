@@ -513,14 +513,18 @@ class _cs_matrix(_data_matrix, _minmax_mixin, IndexMixin):
 
         return self.__class__((data,indices,indptr),shape=(M,N))
 
-    def diagonal(self):
-        """Returns the main diagonal of the matrix
-        """
-        # TODO support k-th diagonal
+    def diagonal(self, k=0):
+        rows, cols = self.shape
+        if k <= -rows or k >= cols:
+            raise ValueError("k exceeds matrix dimensions")
         fn = getattr(_sparsetools, self.format + "_diagonal")
-        y = np.empty(min(self.shape), dtype=upcast(self.dtype))
-        fn(self.shape[0], self.shape[1], self.indptr, self.indices, self.data, y)
+        y = np.empty(min(rows + min(k, 0), cols - max(k, 0)),
+                     dtype=upcast(self.dtype))
+        fn(k, self.shape[0], self.shape[1], self.indptr, self.indices,
+           self.data, y)
         return y
+
+    diagonal.__doc__ = spmatrix.diagonal.__doc__
 
     #####################
     # Other binary ops  #
