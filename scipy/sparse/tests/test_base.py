@@ -19,7 +19,6 @@ Run tests if sparse is not installed:
   python tests/test_base.py
 """
 
-import warnings
 import operator
 import contextlib
 
@@ -27,12 +26,13 @@ import numpy as np
 from scipy._lib.six import xrange, zip as izip
 from numpy import (arange, zeros, array, dot, matrix, asmatrix, asarray,
                    vstack, ndarray, transpose, diag, kron, inf, conjugate,
-                   int8, ComplexWarning, power)
+                   int8, ComplexWarning)
 
 import random
 from numpy.testing import (assert_raises, assert_equal, assert_array_equal,
         assert_array_almost_equal, assert_almost_equal, assert_,
         dec, run_module_suite, assert_allclose)
+from scipy._lib._numpy_compat import suppress_warnings
 
 import scipy.linalg
 
@@ -45,7 +45,6 @@ from scipy.sparse.linalg import splu, expm, inv
 
 from scipy._lib._version import NumpyVersion
 from scipy._lib.decorator import decorator
-from scipy._lib._numpy_compat import suppress_warnings
 
 import nose
 try:
@@ -71,21 +70,8 @@ np.add(_UFuncCheck(), np.array([1]))
 # Only test matmul operator (A @ B) when available (Python 3.5+)
 TEST_MATMUL = hasattr(operator, 'matmul')
 
-sup_sparse_efficiency = suppress_warnings()
-sup_sparse_efficiency.filter(SparseEfficiencyWarning)
 sup_complex = suppress_warnings()
 sup_complex.filter(ComplexWarning)
-
-sup_sparse_efficiency2 = suppress_warnings()
-sup_sparse_efficiency2.filter(SparseEfficiencyWarning)
-
-
-def setup_module():
-    sup_sparse_efficiency.__enter__()
-
-
-def teardown_module():
-    sup_sparse_efficiency.__exit__()
 
 
 def with_64bit_maxval_limit(maxval_limit=None, random=False, fixed_dtype=None,
@@ -247,9 +233,6 @@ class _TestCommon:
     """test common functionality shared by all sparse formats"""
     math_dtypes = supported_dtypes
 
-    # TODO: Why this decorator is necessary when there is a module level
-    #       suppression, is completely puzzeling to me.
-    @sup_sparse_efficiency2
     def __init__(self):
         # Canonical data.
         self.dat = matrix([[1,0,0,2],[3,0,1,0],[0,2,0,0]],'d')
@@ -724,7 +707,9 @@ class _TestCommon:
                     v = np.random.randint(1, 20, size=r)
 
                 dense_setdiag(a, v, k)
-                b.setdiag(v, k)
+                with suppress_warnings() as sup:
+                    sup.filter(SparseEfficiencyWarning, "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+                    b.setdiag(v, k)
 
                 # check that dense_setdiag worked
                 d = np.diag(a, k)
@@ -757,21 +742,24 @@ class _TestCommon:
         # simple test cases
         m = self.spmatrix(np.eye(3))
         values = [3, 2, 1]
-        assert_raises(ValueError, m.setdiag, values, k=4)
-        m.setdiag(values)
-        assert_array_equal(m.diagonal(), values)
-        m.setdiag(values, k=1)
-        assert_array_equal(m.A, np.array([[3, 3, 0],
-                                          [0, 2, 2],
-                                          [0, 0, 1]]))
-        m.setdiag(values, k=-2)
-        assert_array_equal(m.A, np.array([[3, 3, 0],
-                                          [0, 2, 2],
-                                          [3, 0, 1]]))
-        m.setdiag((9,), k=2)
-        assert_array_equal(m.A[0,2], 9)
-        m.setdiag((9,), k=-2)
-        assert_array_equal(m.A[2,0], 9)
+        with suppress_warnings() as sup:
+            sup.filter(SparseEfficiencyWarning,
+                       "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+            assert_raises(ValueError, m.setdiag, values, k=4)
+            m.setdiag(values)
+            assert_array_equal(m.diagonal(), values)
+            m.setdiag(values, k=1)
+            assert_array_equal(m.A, np.array([[3, 3, 0],
+                                              [0, 2, 2],
+                                              [0, 0, 1]]))
+            m.setdiag(values, k=-2)
+            assert_array_equal(m.A, np.array([[3, 3, 0],
+                                              [0, 2, 2],
+                                              [3, 0, 1]]))
+            m.setdiag((9,), k=2)
+            assert_array_equal(m.A[0,2], 9)
+            m.setdiag((9,), k=-2)
+            assert_array_equal(m.A[2,0], 9)
 
     def test_nonzero(self):
         A = array([[1, 0, 1],[0, 1, 1],[0, 0, 1]])
@@ -985,20 +973,35 @@ class _TestCommon:
         M = array([[1, 0, 2], [0, 0, 3], [-4, 5, 6]], float)
         sM = self.spmatrix(M, shape=(3,3), dtype=float)
         Mexp = scipy.linalg.expm(M)
-        sMexp = expm(sM).todense()
-        assert_array_almost_equal((sMexp - Mexp), zeros((3, 3)))
 
         N = array([[3., 0., 1.], [0., 2., 0.], [0., 0., 0.]])
         sN = self.spmatrix(N, shape=(3,3), dtype=float)
         Nexp = scipy.linalg.expm(N)
-        sNexp = expm(sN).todense()
+
+        with suppress_warnings() as sup:
+            sup.filter(SparseEfficiencyWarning, "splu requires CSC matrix format")
+            sup.filter(SparseEfficiencyWarning,
+                       "spsolve is more efficient when sparse b is in the CSC matrix format")
+            sup.filter(SparseEfficiencyWarning,
+                       "spsolve requires A be CSC or CSR matrix format")
+            sMexp = expm(sM).todense()
+            sNexp = expm(sN).todense()
+
+        assert_array_almost_equal((sMexp - Mexp), zeros((3, 3)))
         assert_array_almost_equal((sNexp - Nexp), zeros((3, 3)))
 
     def test_inv(self):
         def check(dtype):
             M = array([[1, 0, 2], [0, 0, 3], [-4, 5, 6]], dtype)
-            sM = self.spmatrix(M, shape=(3,3), dtype=dtype)
-            sMinv = inv(sM)
+            with suppress_warnings() as sup:
+                sup.filter(SparseEfficiencyWarning,
+                           "spsolve requires A be CSC or CSR matrix format")
+                sup.filter(SparseEfficiencyWarning,
+                           "spsolve is more efficient when sparse b is in the CSC matrix format")
+                sup.filter(SparseEfficiencyWarning,
+                           "splu requires CSC matrix format")
+                sM = self.spmatrix(M, shape=(3,3), dtype=dtype)
+                sMinv = inv(sM)
             assert_array_almost_equal(sMinv.dot(sM).todense(), np.eye(3))
         for dtype in [float]:
             yield check, dtype
@@ -1566,7 +1569,7 @@ class _TestCommon:
         assert_array_almost_equal(B.todense(), A.todense() * A.T.todense())
         assert_array_almost_equal(B.todense(), A.todense() * A.todense().T)
 
-        # check dimension mismatch  2x2 times 3x2
+        # check dimension mismatch 2x2 times 3x2
         A = self.spmatrix([[1,2],[3,4]])
         B = self.spmatrix([[1,2],[3,4],[5,6]])
         assert_raises(ValueError, A.__mul__, B)
@@ -1705,12 +1708,17 @@ class _TestCommon:
             else:
                 raise ValueError()
 
-            max_s = A.maximum(B)
+            with suppress_warnings() as sup:
+                sup.filter(SparseEfficiencyWarning,
+                           "Taking maximum .minimum. with > 0 .< 0. number results to a dense matrix")
+
+                max_s = A.maximum(B)
+                min_s = A.minimum(B)
+
             max_d = np.maximum(todense(A), todense(B))
             assert_array_equal(todense(max_s), max_d)
             assert_equal(max_s.dtype, max_d.dtype)
 
-            min_s = A.minimum(B)
             min_d = np.minimum(todense(A), todense(B))
             assert_array_equal(todense(min_s), min_d)
             assert_equal(min_s.dtype, min_d.dtype)
@@ -2148,13 +2156,16 @@ class _TestGetSet:
     def test_setelement(self):
         def check(dtype):
             A = self.spmatrix((3,4), dtype=dtype)
-            A[0, 0] = dtype.type(0)  # bug 870
-            A[1, 2] = dtype.type(4.0)
-            A[0, 1] = dtype.type(3)
-            A[2, 0] = dtype.type(2.0)
-            A[0,-1] = dtype.type(8)
-            A[-1,-2] = dtype.type(7)
-            A[0, 1] = dtype.type(5)
+            with suppress_warnings() as sup:
+                sup.filter(SparseEfficiencyWarning,
+                           "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+                A[0, 0] = dtype.type(0)  # bug 870
+                A[1, 2] = dtype.type(4.0)
+                A[0, 1] = dtype.type(3)
+                A[2, 0] = dtype.type(2.0)
+                A[0,-1] = dtype.type(8)
+                A[-1,-2] = dtype.type(7)
+                A[0, 1] = dtype.type(5)
 
             if dtype != np.bool_:
                 assert_array_equal(A.todense(),[[0,5,0,8],[0,0,4,0],[2,0,7,0]])
@@ -2178,7 +2189,10 @@ class _TestGetSet:
 
         def check(dtype):
             A = self.spmatrix((3, 10), dtype=dtype)
-            A[0, -4] = 1
+            with suppress_warnings() as sup:
+                sup.filter(SparseEfficiencyWarning,
+                           "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+                A[0, -4] = 1
             assert_equal(A[0, -4], 1)
 
         for dtype in self.math_dtypes:
@@ -2190,7 +2204,10 @@ class _TestGetSet:
         def _test_set(i, j, nitems):
             msg = "%r ; %r ; %r" % (i, j, nitems)
             A = self.spmatrix((n, m))
-            A[i, j] = 1
+            with suppress_warnings() as sup:
+                sup.filter(SparseEfficiencyWarning,
+                           "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+                A[i, j] = 1
             assert_almost_equal(A.sum(), nitems, err_msg=msg)
             assert_almost_equal(A[i, j], 1, err_msg=msg)
 
@@ -2202,10 +2219,13 @@ class _TestGetSet:
     def test_index_scalar_assign(self):
         A = self.spmatrix((5, 5))
         B = np.zeros((5, 5))
-        for C in [A, B]:
-            C[0,1] = 1
-            C[3,0] = 4
-            C[3,0] = 9
+        with suppress_warnings() as sup:
+            sup.filter(SparseEfficiencyWarning,
+                       "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+            for C in [A, B]:
+                C[0,1] = 1
+                C[3,0] = 4
+                C[3,0] = 9
         assert_array_equal(A.toarray(), B)
 
 
@@ -2225,7 +2245,9 @@ class _TestSolve:
             A[i,i+1] = y[i]
             A[i+1,i] = conjugate(y[i])
         A = self.spmatrix(A)
-        x = splu(A).solve(r)
+        with suppress_warnings() as sup:
+            sup.filter(SparseEfficiencyWarning, "splu requires CSC matrix format")
+            x = splu(A).solve(r)
         assert_almost_equal(A*x,r)
 
 
@@ -2436,12 +2458,15 @@ class _TestSlicingAssign:
     def test_slice_scalar_assign(self):
         A = self.spmatrix((5, 5))
         B = np.zeros((5, 5))
-        for C in [A, B]:
-            C[0:1,1] = 1
-            C[3:0,0] = 4
-            C[3:4,0] = 9
-            C[0,4:] = 1
-            C[3::-1,4:] = 9
+        with suppress_warnings() as sup:
+            sup.filter(SparseEfficiencyWarning,
+                       "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+            for C in [A, B]:
+                C[0:1,1] = 1
+                C[3:0,0] = 4
+                C[3:4,0] = 9
+                C[0,4:] = 1
+                C[3::-1,4:] = 9
         assert_array_equal(A.toarray(), B)
 
     def test_slice_assign_2(self):
@@ -2450,7 +2475,10 @@ class _TestSlicingAssign:
         def _test_set(i, j):
             msg = "i=%r; j=%r" % (i, j)
             A = self.spmatrix((n, m))
-            A[i, j] = 1
+            with suppress_warnings() as sup:
+                sup.filter(SparseEfficiencyWarning,
+                           "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+                A[i, j] = 1
             B = np.zeros((n, m))
             B[i, j] = 1
             assert_array_almost_equal(A.todense(), B, err_msg=msg)
@@ -2463,79 +2491,89 @@ class _TestSlicingAssign:
         # Tests whether a row of one lil_matrix can be assigned to
         # another.
         B = self.spmatrix((4,3))
-        B[0,0] = 2
-        B[1,2] = 7
-        B[2,1] = 3
-        B[3,0] = 10
+        with suppress_warnings() as sup:
+            sup.filter(SparseEfficiencyWarning,
+                       "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+            B[0,0] = 2
+            B[1,2] = 7
+            B[2,1] = 3
+            B[3,0] = 10
 
-        A = B / 10
-        B[0,:] = A[0,:]
-        assert_array_equal(A[0,:].A, B[0,:].A)
+            A = B / 10
+            B[0,:] = A[0,:]
+            assert_array_equal(A[0,:].A, B[0,:].A)
 
-        A = B / 10
-        B[:,:] = A[:1,:1]
-        assert_array_equal(np.zeros((4,3)) + A[0,0], B.A)
+            A = B / 10
+            B[:,:] = A[:1,:1]
+            assert_array_equal(np.zeros((4,3)) + A[0,0], B.A)
 
-        A = B / 10
-        B[:-1,0] = A[0,:].T
-        assert_array_equal(A[0,:].A.T, B[:-1,0].A)
+            A = B / 10
+            B[:-1,0] = A[0,:].T
+            assert_array_equal(A[0,:].A.T, B[:-1,0].A)
 
     def test_slice_assignment(self):
         B = self.spmatrix((4,3))
-        B[0,0] = 5
-        B[1,2] = 3
-        B[2,1] = 7
-
         expected = array([[10,0,0],
                           [0,0,6],
                           [0,14,0],
                           [0,0,0]])
-
-        B[:,:] = B+B
-        assert_array_equal(B.todense(),expected)
-
         block = [[1,0],[0,4]]
-        B[:2,:2] = csc_matrix(array(block))
-        assert_array_equal(B.todense()[:2,:2],block)
+
+        with suppress_warnings() as sup:
+            sup.filter(SparseEfficiencyWarning,
+                       "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+            B[0,0] = 5
+            B[1,2] = 3
+            B[2,1] = 7
+            B[:,:] = B+B
+            assert_array_equal(B.todense(),expected)
+
+            B[:2,:2] = csc_matrix(array(block))
+            assert_array_equal(B.todense()[:2,:2],block)
 
     def test_sparsity_modifying_assignment(self):
         B = self.spmatrix((4,3))
-        B[0,0] = 5
-        B[1,2] = 3
-        B[2,1] = 7
-        B[3,0] = 10
+        with suppress_warnings() as sup:
+            sup.filter(SparseEfficiencyWarning,
+                       "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+            B[0,0] = 5
+            B[1,2] = 3
+            B[2,1] = 7
+            B[3,0] = 10
+            B[:3] = csr_matrix(np.eye(3))
 
         expected = array([[1,0,0],[0,1,0],[0,0,1],[10,0,0]])
-        B[:3] = csr_matrix(np.eye(3))
         assert_array_equal(B.toarray(), expected)
 
     def test_set_slice(self):
         A = self.spmatrix((5,10))
         B = matrix(zeros((5,10), float))
-
         s_ = np.s_
         slices = [s_[:2], s_[1:2], s_[3:], s_[3::2],
                   s_[8:3:-1], s_[4::-2], s_[:5:-1],
                   0, 1, s_[:], s_[1:5], -1, -2, -5,
                   array(-1), np.int8(-3)]
 
-        for j, a in enumerate(slices):
-            A[a] = j
-            B[a] = j
-            assert_array_equal(A.todense(), B, repr(a))
+        with suppress_warnings() as sup:
+            sup.filter(SparseEfficiencyWarning,
+                       "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+            for j, a in enumerate(slices):
+                A[a] = j
+                B[a] = j
+                assert_array_equal(A.todense(), B, repr(a))
 
-        for i, a in enumerate(slices):
-            for j, b in enumerate(slices):
-                A[a,b] = 10*i + 1000*(j+1)
-                B[a,b] = 10*i + 1000*(j+1)
-                assert_array_equal(A.todense(), B, repr((a, b)))
+            for i, a in enumerate(slices):
+                for j, b in enumerate(slices):
+                    A[a,b] = 10*i + 1000*(j+1)
+                    B[a,b] = 10*i + 1000*(j+1)
+                    assert_array_equal(A.todense(), B, repr((a, b)))
 
-        A[0, 1:10:2] = xrange(1,10,2)
-        B[0, 1:10:2] = xrange(1,10,2)
-        assert_array_equal(A.todense(), B)
-        A[1:5:2,0] = np.array(range(1,5,2))[:,None]
-        B[1:5:2,0] = np.array(range(1,5,2))[:,None]
-        assert_array_equal(A.todense(), B)
+            A[0, 1:10:2] = xrange(1,10,2)
+            B[0, 1:10:2] = xrange(1,10,2)
+            assert_array_equal(A.todense(), B)
+            A[1:5:2,0] = np.array(range(1,5,2))[:,None]
+            B[1:5:2,0] = np.array(range(1,5,2))[:,None]
+            assert_array_equal(A.todense(), B)
 
         # The next commands should raise exceptions
         assert_raises(ValueError, A.__setitem__, (0, 0), list(range(100)))
@@ -2771,10 +2809,13 @@ class _TestFancyIndexingAssign:
 
         def _test_set_slice(i, j):
             A = self.spmatrix((n, m))
-            with check_remains_sorted(A):
-                A[i, j] = 1
             B = asmatrix(np.zeros((n, m)))
-            B[i, j] = 1
+            with suppress_warnings() as sup:
+                sup.filter(SparseEfficiencyWarning,
+                           "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+                B[i, j] = 1
+                with check_remains_sorted(A):
+                    A[i, j] = 1
             assert_array_almost_equal(A.todense(), B)
         # [1:2,1:2]
         for i, j in [((2, 3, 4), slice(None, 10, 4)),
@@ -2787,12 +2828,15 @@ class _TestFancyIndexingAssign:
     def test_fancy_assignment_dtypes(self):
         def check(dtype):
             A = self.spmatrix((5, 5), dtype=dtype)
-            A[[0,1],[0,1]] = dtype.type(1)
-            assert_equal(A.sum(), dtype.type(1)*2)
-            A[0:2,0:2] = dtype.type(1.0)
-            assert_equal(A.sum(), dtype.type(1)*4)
-            A[2,2] = dtype.type(1.0)
-            assert_equal(A.sum(), dtype.type(1)*4 + dtype.type(1))
+            with suppress_warnings() as sup:
+                sup.filter(SparseEfficiencyWarning,
+                           "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+                A[[0,1],[0,1]] = dtype.type(1)
+                assert_equal(A.sum(), dtype.type(1)*2)
+                A[0:2,0:2] = dtype.type(1.0)
+                assert_equal(A.sum(), dtype.type(1)*4)
+                A[2,2] = dtype.type(1.0)
+                assert_equal(A.sum(), dtype.type(1)*4 + dtype.type(1))
 
         for dtype in supported_dtypes:
             yield check, np.dtype(dtype)
@@ -2805,40 +2849,43 @@ class _TestFancyIndexingAssign:
         i1 = (0,1,2)
         i2 = array(i0)
 
-        with check_remains_sorted(A):
-            A[0,i0] = B[i0,0].T
-            A[1,i1] = B[i1,1].T
-            A[2,i2] = B[i2,2].T
-        assert_array_equal(A.todense(),B.T.todense())
+        with suppress_warnings() as sup:
+            sup.filter(SparseEfficiencyWarning,
+                       "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+            with check_remains_sorted(A):
+                A[0,i0] = B[i0,0].T
+                A[1,i1] = B[i1,1].T
+                A[2,i2] = B[i2,2].T
+            assert_array_equal(A.todense(),B.T.todense())
 
-        # column slice
-        A = self.spmatrix((2,3))
-        with check_remains_sorted(A):
-            A[1,1:3] = [10,20]
-        assert_array_equal(A.todense(), [[0,0,0],[0,10,20]])
+            # column slice
+            A = self.spmatrix((2,3))
+            with check_remains_sorted(A):
+                A[1,1:3] = [10,20]
+            assert_array_equal(A.todense(), [[0,0,0],[0,10,20]])
 
-        # row slice
-        A = self.spmatrix((3,2))
-        with check_remains_sorted(A):
-            A[1:3,1] = [[10],[20]]
-        assert_array_equal(A.todense(), [[0,0],[0,10],[0,20]])
+            # row slice
+            A = self.spmatrix((3,2))
+            with check_remains_sorted(A):
+                A[1:3,1] = [[10],[20]]
+            assert_array_equal(A.todense(), [[0,0],[0,10],[0,20]])
 
-        # both slices
-        A = self.spmatrix((3,3))
-        B = asmatrix(np.zeros((3,3)))
-        with check_remains_sorted(A):
-            for C in [A, B]:
-                C[[0,1,2], [0,1,2]] = [4,5,6]
-        assert_array_equal(A.toarray(), B)
+            # both slices
+            A = self.spmatrix((3,3))
+            B = asmatrix(np.zeros((3,3)))
+            with check_remains_sorted(A):
+                for C in [A, B]:
+                    C[[0,1,2], [0,1,2]] = [4,5,6]
+            assert_array_equal(A.toarray(), B)
 
-        # both slices (2)
-        A = self.spmatrix((4, 3))
-        with check_remains_sorted(A):
-            A[(1, 2, 3), (0, 1, 2)] = [1, 2, 3]
-        assert_almost_equal(A.sum(), 6)
-        B = asmatrix(np.zeros((4, 3)))
-        B[(1, 2, 3), (0, 1, 2)] = [1, 2, 3]
-        assert_array_equal(A.todense(), B)
+            # both slices (2)
+            A = self.spmatrix((4, 3))
+            with check_remains_sorted(A):
+                A[(1, 2, 3), (0, 1, 2)] = [1, 2, 3]
+            assert_almost_equal(A.sum(), 6)
+            B = asmatrix(np.zeros((4, 3)))
+            B[(1, 2, 3), (0, 1, 2)] = [1, 2, 3]
+            assert_array_equal(A.todense(), B)
 
     def test_fancy_assign_empty(self):
         B = asmatrix(arange(50).reshape(5,10))
@@ -2938,7 +2985,9 @@ class _TestFancyMultidimAssign:
 
         def _test_set_slice(i, j):
             A = self.spmatrix((n, m))
-            with check_remains_sorted(A):
+            with check_remains_sorted(A), suppress_warnings() as sup:
+                sup.filter(SparseEfficiencyWarning,
+                           "Changing the sparsity structure of a cs[cr]_matrix is expensive")
                 A[i, j] = 1
             B = asmatrix(np.zeros((n, m)))
             B[i, j] = 1
@@ -3359,7 +3408,12 @@ def sparse_test_class(getset=True, slicing=True, slicing_assign=True,
 #------------------------------------------------------------------------------
 
 class TestCSR(sparse_test_class()):
-    spmatrix = csr_matrix
+    @classmethod
+    def spmatrix(cls, *args, **kwargs):
+        with suppress_warnings() as sup:
+            sup.filter(SparseEfficiencyWarning,
+                       "Changing the sparsity structure of a csr_matrix is expensive")
+            return csr_matrix(*args, **kwargs)
     math_dtypes = [np.bool_, np.int_, np.float_, np.complex_]
 
     def test_constructor1(self):
@@ -3577,7 +3631,12 @@ class TestCSR(sparse_test_class()):
 
 
 class TestCSC(sparse_test_class()):
-    spmatrix = csc_matrix
+    @classmethod
+    def spmatrix(cls, *args, **kwargs):
+        with suppress_warnings() as sup:
+            sup.filter(SparseEfficiencyWarning,
+                       "Changing the sparsity structure of a csc_matrix is expensive")
+            return csc_matrix(*args, **kwargs)
     math_dtypes = [np.bool_, np.int_, np.float_, np.complex_]
 
     def test_constructor1(self):
@@ -4259,9 +4318,10 @@ class _NonCanonicalMixin(object):
         has_zeros = (zero_pos[0].size > 0)
         if has_zeros:
             k = zero_pos[0].size//2
-            M = self._insert_explicit_zero(M,
-                                           zero_pos[0][k],
-                                           zero_pos[1][k])
+            with suppress_warnings() as sup:
+                sup.filter(SparseEfficiencyWarning,
+                           "Changing the sparsity structure of a cs[cr]_matrix is expensive")
+                M = self._insert_explicit_zero(M, zero_pos[0][k], zero_pos[1][k])
 
         arg1 = self._arg1_for_noncanonical(M, sorted_indices)
         if 'shape' not in kwargs:
@@ -4322,22 +4382,20 @@ class _NonCanonicalCompressedMixin(_NonCanonicalMixin):
 class _NonCanonicalCSMixin(_NonCanonicalCompressedMixin):
     def test_getelement(self):
         def check(dtype, sorted_indices):
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", category=SparseEfficiencyWarning)
-                D = array([[1,0,0],
-                           [4,3,0],
-                           [0,2,0],
-                           [0,0,0]], dtype=dtype)
-                A = self.spmatrix(D, sorted_indices=sorted_indices)
+            D = array([[1,0,0],
+                       [4,3,0],
+                       [0,2,0],
+                       [0,0,0]], dtype=dtype)
+            A = self.spmatrix(D, sorted_indices=sorted_indices)
 
-                M,N = D.shape
+            M,N = D.shape
 
-                for i in range(-M, M):
-                    for j in range(-N, N):
-                        assert_equal(A[i,j], D[i,j])
+            for i in range(-M, M):
+                for j in range(-N, N):
+                    assert_equal(A[i,j], D[i,j])
 
-                for ij in [(0,3),(-1,3),(4,0),(4,3),(4,-1), (1, 2, 3)]:
-                    assert_raises((IndexError, TypeError), A.__getitem__, ij)
+            for ij in [(0,3),(-1,3),(4,0),(4,3),(4,-1), (1, 2, 3)]:
+                assert_raises((IndexError, TypeError), A.__getitem__, ij)
 
         for dtype in supported_dtypes:
             for sorted_indices in [False, True]:

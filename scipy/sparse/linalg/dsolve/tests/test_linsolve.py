@@ -1,12 +1,11 @@
 from __future__ import division, print_function, absolute_import
 
-import warnings
 import threading
 
 import numpy as np
 from numpy import array, finfo, arange, eye, all, unique, ones, dot, matrix
 import numpy.random as random
-from numpy.testing import (TestCase, run_module_suite,
+from numpy.testing import (run_module_suite,
         assert_array_almost_equal, assert_raises, assert_almost_equal,
         assert_equal, assert_array_equal, assert_, assert_allclose)
 
@@ -35,15 +34,14 @@ def toarray(a):
         return a
 
 
-class TestLinsolve(TestCase):
+class TestLinsolve(object):
     def test_singular(self):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=MatrixRankWarning)
-
-            A = csc_matrix((5,5), dtype='d')
-            b = array([1, 2, 3, 4, 5],dtype='d')
+        A = csc_matrix((5,5), dtype='d')
+        b = array([1, 2, 3, 4, 5],dtype='d')
+        with suppress_warnings() as sup:
+            sup.filter(MatrixRankWarning, "Matrix is exactly singular")
             x = spsolve(A, b, use_umfpack=False)
-            assert_(not np.isfinite(x).any())
+        assert_(not np.isfinite(x).any())
 
     def test_singular_gh_3312(self):
         # "Bad" test case that leads SuperLU to call LAPACK with invalid
@@ -53,14 +51,13 @@ class TestLinsolve(TestCase):
         A = csc_matrix((v, ij.T), shape=(20, 20))
         b = np.arange(20)
 
-        with warnings.catch_warnings():
-            try:
-                # should either raise a runtimeerror or return value
-                # appropriate for singular input
-                x = spsolve(A, b, use_umfpack=False)
-                assert_(not np.isfinite(x).any())
-            except RuntimeError:
-                pass
+        try:
+            # should either raise a runtimeerror or return value
+            # appropriate for singular input
+            x = spsolve(A, b, use_umfpack=False)
+            assert_(not np.isfinite(x).any())
+        except RuntimeError:
+            pass
 
     def test_twodiags(self):
         A = spdiags([[1, 2, 3, 4, 5], [6, 5, 8, 9, 10]], [0, 1], 5, 5)
@@ -522,7 +519,7 @@ class TestSplu(object):
         assert_equal(len(oks), 20)
 
 
-class TestSpsolveTriangular(TestCase):
+class TestSpsolveTriangular(object):
 
     def test_singular(self):
         n = 5

@@ -161,6 +161,62 @@ add_newdoc("scipy.special", "wrightomega",
 
     """)
 
+
+add_newdoc("scipy.special", "agm",
+    """
+    agm(a, b)
+
+    Compute the arithmetic-geometric mean of `a` and `b`.
+
+    Start with a_0 = a and b_0 = b and iteratively compute::
+
+        a_{n+1} = (a_n + b_n)/2
+        b_{n+1} = sqrt(a_n*b_n)
+
+    a_n and b_n converge to the same limit as n increases; their common
+    limit is agm(a, b).
+
+    Parameters
+    ----------
+    a, b : array_like
+        Real values only.  If the values are both negative, the result
+        is negative.  If one value is negative and the other is positive,
+        `nan` is returned.
+
+    Returns
+    -------
+    float
+        The arithmetic-geometric mean of `a` and `b`.
+
+    Examples
+    --------
+    >>> from scipy.special import agm
+    >>> a, b = 24.0, 6.0
+    >>> agm(a, b)
+    13.458171481725614
+
+    Compare that result to the iteration:
+
+    >>> while a != b:
+    ...     a, b = (a + b)/2, np.sqrt(a*b)
+    ...     print("a = %19.16f  b=%19.16f" % (a, b))
+    ...
+    a = 15.0000000000000000  b=12.0000000000000000
+    a = 13.5000000000000000  b=13.4164078649987388
+    a = 13.4582039324993694  b=13.4581390309909850
+    a = 13.4581714817451772  b=13.4581714817060547
+    a = 13.4581714817256159  b=13.4581714817256159
+
+    When array-like arguments are given, broadcasting applies:
+
+    >>> a = np.array([[1.5], [3], [6]])  # a has shape (3, 1).
+    >>> b = np.array([6, 12, 24, 48])    # b has shape (4,).
+    >>> agm(a, b)
+    array([[  3.36454287,   5.42363427,   9.05798751,  15.53650756],
+           [  4.37037309,   6.72908574,  10.84726853,  18.11597502],
+           [  6.        ,   8.74074619,  13.45817148,  21.69453707]])
+    """)
+
 add_newdoc("scipy.special", "airy",
     r"""
     airy(z)
@@ -966,7 +1022,27 @@ add_newdoc("scipy.special", "cbrt",
     """
     cbrt(x)
 
-    Cube root of `x`
+    Element-wise cube root of `x`.
+
+    Parameters
+    ----------
+    x : array_like
+        `x` must contain real numbers.
+
+    Returns
+    -------
+    float
+        The cube root of each value in `x`.
+
+    Examples
+    --------
+    >>> from scipy.special import cbrt
+
+    >>> cbrt(8)
+    2.0
+    >>> cbrt([-8, -3, 0.125, 1.331])
+    array([-2.        , -1.44224957,  0.5       ,  1.1       ])
+
     """)
 
 add_newdoc("scipy.special", "chdtr",
@@ -2122,14 +2198,57 @@ add_newdoc("scipy.special", "exp10",
     """
     exp10(x)
 
-    10**x
+    Compute ``10**x`` element-wise.
+
+    Parameters
+    ----------
+    x : array_like
+        `x` must contain real numbers.
+
+    Returns
+    -------
+    float
+        ``10**x``, computed element-wise.
+
+    Examples
+    --------
+    >>> from scipy.special import exp10
+
+    >>> exp10(3)
+    1000.0
+    >>> x = np.array([[-1, -0.5, 0], [0.5, 1, 1.5]])
+    >>> exp10(x)
+    array([[  0.1       ,   0.31622777,   1.        ],
+           [  3.16227766,  10.        ,  31.6227766 ]])
+
     """)
 
 add_newdoc("scipy.special", "exp2",
     """
     exp2(x)
 
-    2**x
+    Compute ``2**x`` element-wise.
+
+    Parameters
+    ----------
+    x : array_like
+        `x` must contain real numbers.
+
+    Returns
+    -------
+    float
+        ``2**x``, computed element-wise.
+
+    Examples
+    --------
+    >>> from scipy.special import exp2
+
+    >>> exp2(3)
+    8.0
+    >>> x = np.array([[-1, -0.5, 0], [0.5, 1, 1.5]])
+    >>> exp2(x)
+    array([[ 0.5       ,  0.70710678,  1.        ],
+           [ 1.41421356,  2.        ,  2.82842712]])
     """)
 
 add_newdoc("scipy.special", "expi",
@@ -2207,7 +2326,47 @@ add_newdoc("scipy.special", "expm1",
     """
     expm1(x)
 
-    exp(x) - 1 for use when `x` is near zero.
+    Compute ``exp(x) - 1``.
+
+    When `x` is near zero, ``exp(x)`` is near 1, so the numerical calculation
+    of ``exp(x) - 1`` can suffer from catastrophic loss of precision.
+    ``expm1(x)`` is implemented to avoid the loss of precision that occurs when
+    `x` is near zero.
+
+    Parameters
+    ----------
+    x : array_like
+        `x` must contain real numbers.
+
+    Returns
+    -------
+    float
+        ``exp(x) - 1`` computed element-wise.
+
+    Examples
+    --------
+    >>> from scipy.special import expm1
+
+    >>> expm1(1.0)
+    1.7182818284590451
+    >>> expm1([-0.2, -0.1, 0, 0.1, 0.2])
+    array([-0.18126925, -0.09516258,  0.        ,  0.10517092,  0.22140276])
+
+    The exact value of ``exp(7.5e-13) - 1`` is::
+
+        7.5000000000028125000000007031250000001318...*10**-13.
+
+    Here is what ``expm1(7.5e-13)`` gives:
+
+    >>> expm1(7.5e-13)
+    7.5000000000028135e-13
+
+    Compare that to ``exp(7.5e-13) - 1``, where the subtraction results in
+    a "catastrophic" loss of precision:
+
+    >>> np.exp(7.5e-13) - 1
+    7.5006667543675576e-13
+
     """)
 
 add_newdoc("scipy.special", "expn",
@@ -2226,23 +2385,48 @@ add_newdoc("scipy.special", "exprel",
     r"""
     exprel(x)
 
-    Relative error exponential, (exp(x)-1)/x, for use when `x` is near zero.
+    Relative error exponential, ``(exp(x) - 1)/x``.
+
+    When `x` is near zero, ``exp(x)`` is near 1, so the numerical calculation
+    of ``exp(x) - 1`` can suffer from catastrophic loss of precision.
+    ``exprel(x)`` is implemented to avoid the loss of precision that occurs when
+    `x` is near zero.
 
     Parameters
     ----------
     x : ndarray
-        Input array.
+        Input array.  `x` must contain real numbers.
 
     Returns
     -------
-    res : ndarray
-        Output array.
+    float
+        ``(exp(x) - 1)/x``, computed element-wise.
 
     See Also
     --------
     expm1
 
+    Notes
+    -----
     .. versionadded:: 0.17.0
+
+    Examples
+    --------
+    >>> from scipy.special import exprel
+
+    >>> exprel(0.01)
+    1.0050167084168056
+    >>> exprel([-0.25, -0.1, 0, 0.1, 0.25])
+    array([ 0.88479687,  0.95162582,  1.        ,  1.05170918,  1.13610167])
+
+    Compare ``exprel(5e-9)`` to the naive calculation.  The exact value
+    is ``1.00000000250000000416...``.
+
+    >>> exprel(5e-9)
+    1.0000000025
+
+    >>> (np.exp(5e-9) - 1)/5e-9
+    0.99999999392252903
     """)
 
 add_newdoc("scipy.special", "fdtr",
