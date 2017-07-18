@@ -104,7 +104,7 @@ before_install:
   - export LIBRARY_PATH=$HOME/.local/lib
   - export LD_LIBRARY_PATH=$HOME/.local/lib
   # End install gmpy2 dependencies
-  - travis_retry pip install --install-option="--no-cython-compile"  https://github.com/cython/cython/archive/c824a3822c8b37dc49e23d9ed82036a5565075c1.zip
+  - travis_retry pip install --install-option="--no-cython-compile"  https://github.com/cython/cython/archive/19d890ecbf4d47f9114d32af646208187608e583.zip
   - travis_retry pip install $NUMPYSPEC
   - travis_retry pip install nose mpmath argparse Pillow codecov
   - travis_retry pip install --upgrade pip setuptools
