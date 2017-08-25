@@ -1818,13 +1818,13 @@ def winsorize(a, limits=None, inclusive=(True, True), inplace=False,
             if low_include:
                 lowidx = int(low_limit * n)
             else:
-                lowidx = np.round(low_limit * n)
+                lowidx = np.round(low_limit * n).astype(int)
             a[idx[:lowidx]] = a[idx[lowidx]]
         if up_limit is not None:
             if up_include:
                 upidx = n - int(n * up_limit)
             else:
-                upidx = n - np.round(n * up_limit)
+                upidx = n - np.round(n * up_limit).astype(int)
             a[idx[upidx:]] = a[idx[upidx - 1]]
         return a
 
@@ -2100,7 +2100,7 @@ def describe(a, axis=0, ddof=0, bias=True):
     >>> from scipy.stats.mstats import describe
     >>> ma = np.ma.array(range(6), mask=[0, 0, 0, 1, 1, 1])
     >>> describe(ma)
-    DescribeResult(nobs=array(3), minmax=(masked_array(data = 0,
+    DescribeResult(nobs=3, minmax=(masked_array(data = 0,
                  mask = False,
            fill_value = 999999)
     , masked_array(data = 2,

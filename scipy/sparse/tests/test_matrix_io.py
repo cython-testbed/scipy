@@ -5,10 +5,13 @@ import os
 import numpy as np
 import tempfile
 
-from numpy.testing import assert_equal, run_module_suite, assert_, assert_raises, dec
+import pytest
+from pytest import raises as assert_raises
+from numpy.testing import assert_equal, assert_
 from scipy._lib._version import NumpyVersion
 
-from scipy.sparse import csc_matrix, csr_matrix, bsr_matrix, dia_matrix, coo_matrix, save_npz, load_npz
+from scipy.sparse import (csc_matrix, csr_matrix, bsr_matrix, dia_matrix,
+                          coo_matrix, save_npz, load_npz)
 
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), 'data')
@@ -50,8 +53,8 @@ def test_save_and_load_one_entry():
     _check_save_and_load(dense_matrix)
 
 
-@dec.skipif(NumpyVersion(np.__version__) < '1.10.0',
-            'disabling unpickling requires numpy >= 1.10.0')
+@pytest.mark.skipif(NumpyVersion(np.__version__) < '1.10.0',
+                    reason='disabling unpickling requires numpy >= 1.10.0')
 def test_malicious_load():
     class Executor(object):
         def __reduce__(self):
@@ -80,6 +83,3 @@ def test_py23_compatibility():
     assert_equal(a.toarray(), c.toarray())
     assert_equal(b.toarray(), c.toarray())
 
-
-if __name__ == "__main__":
-    run_module_suite()

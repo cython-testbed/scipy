@@ -16,9 +16,10 @@ from collections import namedtuple
 from numpy.testing import (assert_, assert_equal,
                            assert_almost_equal, assert_array_almost_equal,
                            assert_array_equal, assert_approx_equal,
-                           assert_raises, run_module_suite, assert_allclose,
-                           dec)
-from scipy._lib._numpy_compat import assert_raises_regex, suppress_warnings
+                           assert_allclose)
+import pytest
+from pytest import raises as assert_raises
+from scipy._lib._numpy_compat import suppress_warnings
 import numpy.ma.testutils as mat
 from numpy import array, arange, float32, float64, power
 import numpy as np
@@ -28,7 +29,7 @@ import scipy.stats.mstats as mstats
 import scipy.stats.mstats_basic as mstats_basic
 from scipy._lib._version import NumpyVersion
 from scipy._lib.six import xrange
-from common_tests import check_named_results
+from .common_tests import check_named_results
 
 """ Numbers in docstrings beginning with 'W' refer to the section numbers
     and headings found in the STATISTICS QUIZ of Leland Wilkinson.  These are
@@ -101,11 +102,9 @@ class TestTrimmedStats(object):
             assert_equal(stats.tmin(x, nan_policy='omit'), 0.)
             assert_raises(ValueError, stats.tmin, x, nan_policy='raise')
             assert_raises(ValueError, stats.tmin, x, nan_policy='foobar')
-            assert_raises_regex(ValueError,
-                            "'propagate', 'raise', 'omit'",
-                            stats.tmin,
-                            x,
-                            nan_policy='foo')
+            msg = "'propagate', 'raise', 'omit'"
+            with assert_raises(ValueError, message=msg):
+                stats.tmin(x, nan_policy='foo')
 
     def test_tmax(self):
         assert_equal(stats.tmax(4), 4)
@@ -341,7 +340,7 @@ class TestFisherExact(object):
             np.testing.assert_almost_equal(res[1], res_r[1], decimal=11,
                                            verbose=True)
 
-    @dec.slow
+    @pytest.mark.slow
     def test_large_numbers(self):
         # Test with some large numbers. Regression test for #1401
         pvals = [5.56e-11, 2.666e-11, 1.363e-11]  # from R
@@ -1277,7 +1276,7 @@ class TestHMean(object):
 
 
 class TestScoreatpercentile(object):
-    def setUp(self):
+    def setup_method(self):
         self.a1 = [3, 4, 5, 10, -3, -5, 6]
         self.a2 = [3, -6, -2, 8, 7, 4, 2, 1]
         self.a3 = [3., 4, 5, 10, -3, -5, -6, 7.0]
@@ -1408,7 +1407,7 @@ class TestItemfreq(object):
         dtypes = [np.int32, np.int64, np.float32, np.float64,
                   np.complex64, np.complex128]
         for dt in dtypes:
-            yield _check_itemfreq, dt
+            _check_itemfreq(dt)
 
     def test_object_arrays(self):
         a, b = self.a, self.b
@@ -1478,7 +1477,7 @@ class TestMode(object):
         assert_equal(vals[0][0], 'showers')
         assert_equal(vals[1][0], 2)
 
-    @dec.knownfailureif(sys.version_info > (3,), 'numpy github issue 641')
+    @pytest.mark.xfail(sys.version_info > (3,), reason='numpy github issue 641')
     def test_mixed_objects(self):
         objects = [10, True, np.nan, 'hello', 10]
         arr = np.empty((5,), dtype=object)
@@ -2144,7 +2143,8 @@ class TestMoments(object):
 
         x = np.arange(10.)
         x[9] = np.nan
-        assert_equal(stats.skew(x), np.nan)
+        with np.errstate(invalid='ignore'):
+            assert_equal(stats.skew(x), np.nan)
         assert_equal(stats.skew(x, nan_policy='omit'), 0.)
         assert_raises(ValueError, stats.skew, x, nan_policy='raise')
         assert_raises(ValueError, stats.skew, x, nan_policy='foobar')
@@ -2158,7 +2158,8 @@ class TestMoments(object):
         # with and without nans, cf gh-5817
         a = np.arange(8).reshape(2, -1).astype(float)
         a[1, 0] = np.nan
-        s = stats.skew(a, axis=1, nan_policy="propagate")
+        with np.errstate(invalid='ignore'):
+            s = stats.skew(a, axis=1, nan_policy="propagate")
         np.testing.assert_allclose(s, [0, np.nan], atol=1e-15)
 
     def test_kurtosis(self):
@@ -2450,50 +2451,50 @@ class TestPowerDivergence(object):
 
     def test_basic(self):
         for case in power_div_1d_cases:
-            yield (self.check_power_divergence,
+            self.check_power_divergence(
                    case.f_obs, case.f_exp, case.ddof, case.axis,
                    None, case.chi2)
-            yield (self.check_power_divergence,
+            self.check_power_divergence(
                    case.f_obs, case.f_exp, case.ddof, case.axis,
                    "pearson", case.chi2)
-            yield (self.check_power_divergence,
+            self.check_power_divergence(
                    case.f_obs, case.f_exp, case.ddof, case.axis,
                    1, case.chi2)
-            yield (self.check_power_divergence,
+            self.check_power_divergence(
                    case.f_obs, case.f_exp, case.ddof, case.axis,
                    "log-likelihood", case.log)
-            yield (self.check_power_divergence,
+            self.check_power_divergence(
                    case.f_obs, case.f_exp, case.ddof, case.axis,
                    "mod-log-likelihood", case.mod_log)
-            yield (self.check_power_divergence,
+            self.check_power_divergence(
                    case.f_obs, case.f_exp, case.ddof, case.axis,
                    "cressie-read", case.cr)
-            yield (self.check_power_divergence,
+            self.check_power_divergence(
                    case.f_obs, case.f_exp, case.ddof, case.axis,
                    2/3, case.cr)
 
     def test_basic_masked(self):
         for case in power_div_1d_cases:
             mobs = np.ma.array(case.f_obs)
-            yield (self.check_power_divergence,
+            self.check_power_divergence(
                    mobs, case.f_exp, case.ddof, case.axis,
                    None, case.chi2)
-            yield (self.check_power_divergence,
+            self.check_power_divergence(
                    mobs, case.f_exp, case.ddof, case.axis,
                    "pearson", case.chi2)
-            yield (self.check_power_divergence,
+            self.check_power_divergence(
                    mobs, case.f_exp, case.ddof, case.axis,
                    1, case.chi2)
-            yield (self.check_power_divergence,
+            self.check_power_divergence(
                    mobs, case.f_exp, case.ddof, case.axis,
                    "log-likelihood", case.log)
-            yield (self.check_power_divergence,
+            self.check_power_divergence(
                    mobs, case.f_exp, case.ddof, case.axis,
                    "mod-log-likelihood", case.mod_log)
-            yield (self.check_power_divergence,
+            self.check_power_divergence(
                    mobs, case.f_exp, case.ddof, case.axis,
                    "cressie-read", case.cr)
-            yield (self.check_power_divergence,
+            self.check_power_divergence(
                    mobs, case.f_exp, case.ddof, case.axis,
                    2/3, case.cr)
 
@@ -2505,21 +2506,21 @@ class TestPowerDivergence(object):
                            case1.f_exp))
         # Check the four computational code paths in power_divergence
         # using a 2D array with axis=1.
-        yield (self.check_power_divergence,
+        self.check_power_divergence(
                f_obs, f_exp, 0, 1,
                "pearson", [case0.chi2, case1.chi2])
-        yield (self.check_power_divergence,
+        self.check_power_divergence(
                f_obs, f_exp, 0, 1,
                "log-likelihood", [case0.log, case1.log])
-        yield (self.check_power_divergence,
+        self.check_power_divergence(
                f_obs, f_exp, 0, 1,
                "mod-log-likelihood", [case0.mod_log, case1.mod_log])
-        yield (self.check_power_divergence,
+        self.check_power_divergence(
                f_obs, f_exp, 0, 1,
                "cressie-read", [case0.cr, case1.cr])
         # Reshape case0.f_obs to shape (2,2), and use axis=None.
         # The result should be the same.
-        yield (self.check_power_divergence,
+        self.check_power_divergence(
                np.array(case0.f_obs).reshape(2, 2), None, 0, None,
                "pearson", case0.chi2)
 
@@ -2554,16 +2555,16 @@ class TestPowerDivergence(object):
     def test_empty_cases(self):
         with warnings.catch_warnings():
             for case in power_div_empty_cases:
-                yield (self.check_power_divergence,
+                self.check_power_divergence(
                        case.f_obs, case.f_exp, case.ddof, case.axis,
                        "pearson", case.chi2)
-                yield (self.check_power_divergence,
+                self.check_power_divergence(
                        case.f_obs, case.f_exp, case.ddof, case.axis,
                        "log-likelihood", case.log)
-                yield (self.check_power_divergence,
+                self.check_power_divergence(
                        case.f_obs, case.f_exp, case.ddof, case.axis,
                        "mod-log-likelihood", case.mod_log)
-                yield (self.check_power_divergence,
+                self.check_power_divergence(
                        case.f_obs, case.f_exp, case.ddof, case.axis,
                        "cressie-read", case.cr)
 
@@ -2741,7 +2742,7 @@ def test_friedmanchisquare():
                               (18.9428571428571, 0.000280938375189499))
     assert_array_almost_equal(stats.friedmanchisquare(x3[0],x3[1],x3[2],x3[3]),
                               (10.68, 0.0135882729582176))
-    np.testing.assert_raises(ValueError, stats.friedmanchisquare,x3[0],x3[1])
+    assert_raises(ValueError, stats.friedmanchisquare,x3[0],x3[1])
 
     # test for namedtuple attribute results
     attributes = ('statistic', 'pvalue')
@@ -2758,7 +2759,7 @@ def test_friedmanchisquare():
     assert_array_almost_equal(mstats.friedmanchisquare(x3[0], x3[1],
                                                        x3[2], x3[3]),
                               (10.68, 0.0135882729582176))
-    np.testing.assert_raises(ValueError, mstats.friedmanchisquare,x3[0],x3[1])
+    assert_raises(ValueError, mstats.friedmanchisquare,x3[0],x3[1])
 
 
 def test_kstest():
@@ -3284,9 +3285,9 @@ class TestDescribe(object):
 
 
 def test_normalitytests():
-    yield (assert_raises, ValueError, stats.skewtest, 4.)
-    yield (assert_raises, ValueError, stats.kurtosistest, 4.)
-    yield (assert_raises, ValueError, stats.normaltest, 4.)
+    assert_raises(ValueError, stats.skewtest, 4.)
+    assert_raises(ValueError, stats.kurtosistest, 4.)
+    assert_raises(ValueError, stats.normaltest, 4.)
 
     # numbers verified with R: dagoTest in package fBasics
     st_normal, st_skew, st_kurt = (3.92371918, 1.98078826, -0.01403734)
@@ -4203,5 +4204,200 @@ class TestCombinePvalues(object):
                                      weights=np.array((1, 4, 9)))
         assert_approx_equal(p, 0.1464, significant=4)
 
-if __name__ == "__main__":
-    run_module_suite()
+
+class TestCdfDistanceValidation(object):
+    """
+    Test that _cdf_distance() (via wasserstein_distance()) raises ValueErrors
+    for bad inputs.
+    """
+
+    def test_distinct_value_and_weight_lengths(self):
+        # When the number of weights does not match the number of values,
+        # a ValueError should be raised.
+        assert_raises(ValueError, stats.wasserstein_distance,
+                      [1], [2], [4], [3, 1])
+        assert_raises(ValueError, stats.wasserstein_distance, [1], [2], [1, 0])
+
+    def test_zero_weight(self):
+        # When a distribution is given zero weight, a ValueError should be
+        # raised.
+        assert_raises(ValueError, stats.wasserstein_distance,
+                      [0, 1], [2], [0, 0])
+        assert_raises(ValueError, stats.wasserstein_distance,
+                      [0, 1], [2], [3, 1], [0])
+
+    def test_negative_weights(self):
+        # A ValueError should be raised if there are any negative weights.
+        assert_raises(ValueError, stats.wasserstein_distance,
+                      [0, 1], [2, 2], [1, 1], [3, -1])
+
+    def test_empty_distribution(self):
+        # A ValueError should be raised when trying to measure the distance
+        # between something and nothing.
+        assert_raises(ValueError, stats.wasserstein_distance, [], [2, 2])
+        assert_raises(ValueError, stats.wasserstein_distance, [1], [])
+
+    def test_inf_weight(self):
+        # An inf weight is not valid.
+        assert_raises(ValueError, stats.wasserstein_distance,
+                      [1, 2, 1], [1, 1], [1, np.inf, 1], [1, 1])
+
+
+class TestWassersteinDistance(object):
+    """ Tests for wasserstein_distance() output values.
+    """
+
+    def test_simple(self):
+        # For basic distributions, the value of the Wasserstein distance is
+        # straightforward.
+        assert_almost_equal(
+            stats.wasserstein_distance([0, 1], [0], [1, 1], [1]),
+            .5)
+        assert_almost_equal(stats.wasserstein_distance(
+            [0, 1], [0], [3, 1], [1]),
+            .25)
+        assert_almost_equal(stats.wasserstein_distance(
+            [0, 2], [0], [1, 1], [1]),
+            1)
+        assert_almost_equal(stats.wasserstein_distance(
+            [0, 1, 2], [1, 2, 3]),
+            1)
+
+    def test_same_distribution(self):
+        # Any distribution moved to itself should have a Wasserstein distance of
+        # zero.
+        assert_equal(stats.wasserstein_distance([1, 2, 3], [2, 1, 3]), 0)
+        assert_equal(
+            stats.wasserstein_distance([1, 1, 1, 4], [4, 1],
+                                       [1, 1, 1, 1], [1, 3]),
+            0)
+
+    def test_shift(self):
+        # If the whole distribution is shifted by x, then the Wasserstein
+        # distance should be x.
+        assert_almost_equal(stats.wasserstein_distance([0], [1]), 1)
+        assert_almost_equal(stats.wasserstein_distance([-5], [5]), 10)
+        assert_almost_equal(
+            stats.wasserstein_distance([1, 2, 3, 4, 5], [11, 12, 13, 14, 15]),
+            10)
+        assert_almost_equal(
+            stats.wasserstein_distance([4.5, 6.7, 2.1], [4.6, 7, 9.2],
+                                       [3, 1, 1], [1, 3, 1]),
+            2.5)
+
+    def test_combine_weights(self):
+        # Assigning a weight w to a value is equivalent to including that value
+        # w times in the value array with weight of 1.
+        assert_almost_equal(
+            stats.wasserstein_distance(
+                [0, 0, 1, 1, 1, 1, 5], [0, 3, 3, 3, 3, 4, 4],
+                [1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1]),
+            stats.wasserstein_distance([5, 0, 1], [0, 4, 3],
+                                       [1, 2, 4], [1, 2, 4]))
+
+    def test_collapse(self):
+        # Collapsing a distribution to a point distribution at zero is
+        # equivalent to taking the average of the absolute values of the values.
+        u = np.arange(-10, 30, 0.3)
+        v = np.zeros_like(u)
+        assert_almost_equal(
+            stats.wasserstein_distance(u, v),
+            np.mean(np.abs(u)))
+
+        u_weights = np.arange(len(u))
+        v_weights = u_weights[::-1]
+        assert_almost_equal(
+            stats.wasserstein_distance(u, v, u_weights, v_weights),
+            np.average(np.abs(u), weights=u_weights))
+
+    def test_zero_weight(self):
+        # Values with zero weight have no impact on the Wasserstein distance.
+        assert_almost_equal(
+            stats.wasserstein_distance([1, 2, 100000], [1, 1],
+                                       [1, 1, 0], [1, 1]),
+            stats.wasserstein_distance([1, 2], [1, 1], [1, 1], [1, 1]))
+
+    def test_inf_values(self):
+        # Inf values can lead to an inf distance or trigger a RuntimeWarning
+        # (and return NaN) if the distance is undefined.
+        assert_equal(
+            stats.wasserstein_distance([1, 2, np.inf], [1, 1]),
+            np.inf)
+        assert_equal(
+            stats.wasserstein_distance([1, 2, np.inf], [-np.inf, 1]),
+            np.inf)
+        assert_equal(
+            stats.wasserstein_distance([1, -np.inf, np.inf], [1, 1]),
+            np.inf)
+        with suppress_warnings() as sup:
+            r = sup.record(RuntimeWarning, "invalid value*")
+            assert_equal(
+                stats.wasserstein_distance([1, 2, np.inf], [np.inf, 1]),
+                np.nan)
+
+
+class TestEnergyDistance(object):
+    """ Tests for energy_distance() output values.
+    """
+
+    def test_simple(self):
+        # For basic distributions, the value of the energy distance is
+        # straightforward.
+        assert_almost_equal(
+            stats.energy_distance([0, 1], [0], [1, 1], [1]),
+            np.sqrt(2) * .5)
+        assert_almost_equal(stats.energy_distance(
+            [0, 1], [0], [3, 1], [1]),
+            np.sqrt(2) * .25)
+        assert_almost_equal(stats.energy_distance(
+            [0, 2], [0], [1, 1], [1]),
+            2 * .5)
+        assert_almost_equal(
+            stats.energy_distance([0, 1, 2], [1, 2, 3]),
+            np.sqrt(2) * (3*(1./3**2))**.5)
+
+    def test_same_distribution(self):
+        # Any distribution moved to itself should have a energy distance of
+        # zero.
+        assert_equal(stats.energy_distance([1, 2, 3], [2, 1, 3]), 0)
+        assert_equal(
+            stats.energy_distance([1, 1, 1, 4], [4, 1], [1, 1, 1, 1], [1, 3]),
+            0)
+
+    def test_shift(self):
+        # If a single-point distribution is shifted by x, then the energy
+        # distance should be sqrt(2) * sqrt(x).
+        assert_almost_equal(stats.energy_distance([0], [1]), np.sqrt(2))
+        assert_almost_equal(
+            stats.energy_distance([-5], [5]),
+            np.sqrt(2) * 10**.5)
+
+    def test_combine_weights(self):
+        # Assigning a weight w to a value is equivalent to including that value
+        # w times in the value array with weight of 1.
+        assert_almost_equal(
+            stats.energy_distance([0, 0, 1, 1, 1, 1, 5], [0, 3, 3, 3, 3, 4, 4],
+                                  [1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1]),
+            stats.energy_distance([5, 0, 1], [0, 4, 3], [1, 2, 4], [1, 2, 4]))
+
+    def test_zero_weight(self):
+        # Values with zero weight have no impact on the energy distance.
+        assert_almost_equal(
+            stats.energy_distance([1, 2, 100000], [1, 1], [1, 1, 0], [1, 1]),
+            stats.energy_distance([1, 2], [1, 1], [1, 1], [1, 1]))
+
+    def test_inf_values(self):
+        # Inf values can lead to an inf distance or trigger a RuntimeWarning
+        # (and return NaN) if the distance is undefined.
+        assert_equal(stats.energy_distance([1, 2, np.inf], [1, 1]), np.inf)
+        assert_equal(
+            stats.energy_distance([1, 2, np.inf], [-np.inf, 1]),
+            np.inf)
+        assert_equal(
+            stats.energy_distance([1, -np.inf, np.inf], [1, 1]),
+            np.inf)
+        with suppress_warnings() as sup:
+            r = sup.record(RuntimeWarning, "invalid value*")
+            assert_equal(
+                stats.energy_distance([1, 2, np.inf], [np.inf, 1]),
+                np.nan)

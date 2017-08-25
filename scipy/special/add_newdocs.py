@@ -2614,10 +2614,14 @@ add_newdoc("scipy.special", "fresnel",
     """)
 
 add_newdoc("scipy.special", "gamma",
-    """
+    r"""
     gamma(z)
 
     Gamma function.
+
+    .. math::
+
+          \Gamma(z) = \int_0^\infty x^{z-1} e^{-x} dx = (z - 1)!
 
     The gamma function is often referred to as the generalized
     factorial since ``z*gamma(z) = gamma(z+1)`` and ``gamma(n+1) =
@@ -3361,10 +3365,51 @@ add_newdoc("scipy.special", "hyp2f0",
     """)
 
 add_newdoc("scipy.special", "hyp2f1",
-    """
+    r"""
     hyp2f1(a, b, c, z)
 
-    Gauss hypergeometric function 2F1(a, b; c; z).
+    Gauss hypergeometric function 2F1(a, b; c; z)
+
+    Parameters
+    ----------
+    a, b, c : array_like
+        Arguments, should be real-valued.
+    z : array_like
+        Argument, real or complex.
+
+    Returns
+    -------
+    hyp2f1 : scalar or ndarray
+        The values of the gaussian hypergeometric function.
+
+    See also
+    --------
+    hyp0f1 : confluent hypergeometric limit function.
+    hyp1f1 : Kummer's (confluent hypergeometric) function.
+
+    Notes
+    -----
+    This function is defined for :math:`|z| < 1` as
+
+    .. math::
+
+       \mathrm{hyp2f1}(a, b, c, z) = \sum_{n=0}^\infty
+       \frac{(a)_n (b)_n}{(c)_n}\frac{z^n}{n!},
+
+    and defined on the rest of the complex z-plane by analytic continuation.
+    Here :math:`(\cdot)_n` is the Pochhammer symbol; see `poch`. When
+    :math:`n` is an integer the result is a polynomial of degree :math:`n`.
+
+    The implementation for complex values of ``z`` is described in [1]_.
+
+    References
+    ----------
+    .. [1] J.M. Jin and Z. S. Jjie, "Computation of special functions", Wiley, 1996.
+    .. [2] Cephes Mathematical Functions Library,
+           http://www.netlib.org/cephes/index.html
+    .. [3] NIST Digital Library of Mathematical Functions
+           http://dlmf.nist.gov/
+
     """)
 
 add_newdoc("scipy.special", "hyp3f0",
@@ -3999,9 +4044,9 @@ add_newdoc("scipy.special", "jv",
     Bessel function :math:`I_v`,
 
     .. math::
-        J_v(z) = \exp(n\pi\imath/2) I_v(-\imath z)\qquad (\Im z > 0)
+        J_v(z) = \exp(v\pi\imath/2) I_v(-\imath z)\qquad (\Im z > 0)
 
-        J_v(z) = \exp(-n\pi\imath/2) I_v(\imath z)\qquad (\Im z < 0)
+        J_v(z) = \exp(-v\pi\imath/2) I_v(\imath z)\qquad (\Im z < 0)
 
     For negative `v` values the formula,
 
@@ -4055,9 +4100,9 @@ add_newdoc("scipy.special", "jve",
     Bessel function :math:`I_v`,
 
     .. math::
-        J_v(z) = \exp(n\pi\imath/2) I_v(-\imath z)\qquad (\Im z > 0)
+        J_v(z) = \exp(v\pi\imath/2) I_v(-\imath z)\qquad (\Im z > 0)
 
-        J_v(z) = \exp(-n\pi\imath/2) I_v(\imath z)\qquad (\Im z < 0)
+        J_v(z) = \exp(-v\pi\imath/2) I_v(\imath z)\qquad (\Im z < 0)
 
     For negative `v` values the formula,
 
@@ -5151,10 +5196,10 @@ add_newdoc("scipy.special", "ncfdtr",
 
     See Also
     --------
-    ncdfdtri : Inverse CDF (iCDF) of the non-central F distribution.
-    ncdfdtridfd : Calculate dfd, given CDF and iCDF values.
-    ncdfdtridfn : Calculate dfn, given CDF and iCDF values.
-    ncdfdtrinc : Calculate noncentrality parameter, given CDF, iCDF, dfn, dfd.
+    ncfdtri : Quantile function; inverse of `ncfdtr` with respect to `f`.
+    ncfdtridfd : Inverse of `ncfdtr` with respect to `dfd`.
+    ncfdtridfn : Inverse of `ncfdtr` with respect to `dfn`.
+    ncfdtrinc : Inverse of `ncfdtr` with respect to `nc`.
 
     Notes
     -----
@@ -5208,21 +5253,86 @@ add_newdoc("scipy.special", "ncfdtr",
 
 add_newdoc("scipy.special", "ncfdtri",
     """
-    ncfdtri(p, dfn, dfd, nc)
+    ncfdtri(dfn, dfd, nc, p)
 
-    Inverse cumulative distribution function of the non-central F distribution.
+    Inverse with respect to `f` of the CDF of the non-central F distribution.
 
     See `ncfdtr` for more details.
+
+    Parameters
+    ----------
+    dfn : array_like
+        Degrees of freedom of the numerator sum of squares.  Range (0, inf).
+    dfd : array_like
+        Degrees of freedom of the denominator sum of squares.  Range (0, inf).
+    nc : array_like
+        Noncentrality parameter.  Should be in range (0, 1e4).
+    p : array_like
+        Value of the cumulative distribution function.  Must be in the
+        range [0, 1].
+
+    Returns
+    -------
+    f : float
+        Quantiles, i.e. the upper limit of integration.
+
+    See Also
+    --------
+    ncfdtr : CDF of the non-central F distribution.
+    ncfdtridfd : Inverse of `ncfdtr` with respect to `dfd`.
+    ncfdtridfn : Inverse of `ncfdtr` with respect to `dfn`.
+    ncfdtrinc : Inverse of `ncfdtr` with respect to `nc`.
+
+    Examples
+    --------
+    >>> from scipy.special import ncfdtr, ncfdtri
+
+    Compute the CDF for several values of `f`:
+
+    >>> f = [0.5, 1, 1.5]
+    >>> p = ncfdtr(2, 3, 1.5, f)
+    >>> p
+    array([ 0.20782291,  0.36107392,  0.47345752])
+
+    Compute the inverse.  We recover the values of `f`, as expected:
+
+    >>> ncfdtri(2, 3, 1.5, p)
+    array([ 0.5,  1. ,  1.5])
 
     """)
 
 add_newdoc("scipy.special", "ncfdtridfd",
     """
-    ncfdtridfd(p, f, dfn, nc)
+    ncfdtridfd(dfn, p, nc, f)
 
     Calculate degrees of freedom (denominator) for the noncentral F-distribution.
 
+    This is the inverse with respect to `dfd` of `ncfdtr`.
     See `ncfdtr` for more details.
+
+    Parameters
+    ----------
+    dfn : array_like
+        Degrees of freedom of the numerator sum of squares.  Range (0, inf).
+    p : array_like
+        Value of the cumulative distribution function.  Must be in the
+        range [0, 1].
+    nc : array_like
+        Noncentrality parameter.  Should be in range (0, 1e4).
+    f : array_like
+        Quantiles, i.e. the upper limit of integration.
+
+    Returns
+    -------
+    dfd : float
+        Degrees of freedom of the denominator sum of squares.
+
+    See Also
+    --------
+    ncfdtr : CDF of the non-central F distribution.
+    ncfdtri : Quantile function; inverse of `ncfdtr` with respect to `f`.
+    ncfdtridfn : Inverse of `ncfdtr` with respect to `dfn`.
+    ncfdtrinc : Inverse of `ncfdtr` with respect to `nc`.
 
     Notes
     -----
@@ -5230,16 +5340,57 @@ add_newdoc("scipy.special", "ncfdtridfd",
     monotone in either degrees of freedom.  There thus may be two values that
     provide a given CDF value.  This routine assumes monotonicity and will
     find an arbitrary one of the two values.
+
+    Examples
+    --------
+    >>> from scipy.special import ncfdtr, ncfdtridfd
+
+    Compute the CDF for several values of `dfd`:
+
+    >>> dfd = [1, 2, 3]
+    >>> p = ncfdtr(2, dfd, 0.25, 15)
+    >>> p
+    array([ 0.8097138 ,  0.93020416,  0.96787852])
+
+    Compute the inverse.  We recover the values of `dfd`, as expected:
+
+    >>> ncfdtridfd(2, p, 0.25, 15)
+    array([ 1.,  2.,  3.])
 
     """)
 
 add_newdoc("scipy.special", "ncfdtridfn",
     """
-    ncfdtridfn(p, f, dfd, nc)
+    ncfdtridfn(p, dfd, nc, f)
 
     Calculate degrees of freedom (numerator) for the noncentral F-distribution.
 
+    This is the inverse with respect to `dfn` of `ncfdtr`.
     See `ncfdtr` for more details.
+
+    Parameters
+    ----------
+    p : array_like
+        Value of the cumulative distribution function.  Must be in the
+        range [0, 1].
+    dfd : array_like
+        Degrees of freedom of the denominator sum of squares.  Range (0, inf).
+    nc : array_like
+        Noncentrality parameter.  Should be in range (0, 1e4).
+    f : float
+        Quantiles, i.e. the upper limit of integration.
+
+    Returns
+    -------
+    dfn : float
+        Degrees of freedom of the numerator sum of squares.
+
+    See Also
+    --------
+    ncfdtr : CDF of the non-central F distribution.
+    ncfdtri : Quantile function; inverse of `ncfdtr` with respect to `f`.
+    ncfdtridfd : Inverse of `ncfdtr` with respect to `dfd`.
+    ncfdtrinc : Inverse of `ncfdtr` with respect to `nc`.
 
     Notes
     -----
@@ -5248,15 +5399,72 @@ add_newdoc("scipy.special", "ncfdtridfn",
     provide a given CDF value.  This routine assumes monotonicity and will
     find an arbitrary one of the two values.
 
+    Examples
+    --------
+    >>> from scipy.special import ncfdtr, ncfdtridfn
+
+    Compute the CDF for several values of `dfn`:
+
+    >>> dfn = [1, 2, 3]
+    >>> p = ncfdtr(dfn, 2, 0.25, 15)
+    >>> p
+    array([ 0.92562363,  0.93020416,  0.93188394])
+
+    Compute the inverse.  We recover the values of `dfn`, as expected:
+
+    >>> ncfdtridfn(p, 2, 0.25, 15)
+    array([ 1.,  2.,  3.])
+
     """)
 
 add_newdoc("scipy.special", "ncfdtrinc",
     """
-    ncfdtrinc(p, f, dfn, dfd)
+    ncfdtrinc(dfn, dfd, p, f)
 
     Calculate non-centrality parameter for non-central F distribution.
 
+    This is the inverse with respect to `nc` of `ncfdtr`.
     See `ncfdtr` for more details.
+
+    Parameters
+    ----------
+    dfn : array_like
+        Degrees of freedom of the numerator sum of squares.  Range (0, inf).
+    dfd : array_like
+        Degrees of freedom of the denominator sum of squares.  Range (0, inf).
+    p : array_like
+        Value of the cumulative distribution function.  Must be in the
+        range [0, 1].
+    f : array_like
+        Quantiles, i.e. the upper limit of integration.
+
+    Returns
+    -------
+    nc : float
+        Noncentrality parameter.
+
+    See Also
+    --------
+    ncfdtr : CDF of the non-central F distribution.
+    ncfdtri : Quantile function; inverse of `ncfdtr` with respect to `f`.
+    ncfdtridfd : Inverse of `ncfdtr` with respect to `dfd`.
+    ncfdtridfn : Inverse of `ncfdtr` with respect to `dfn`.
+
+    Examples
+    --------
+    >>> from scipy.special import ncfdtr, ncfdtrinc
+
+    Compute the CDF for several values of `nc`:
+
+    >>> nc = [0.5, 1.5, 2.0]
+    >>> p = ncfdtr(2, 3, nc, 15)
+    >>> p
+    array([ 0.96309246,  0.94327955,  0.93304098])
+
+    Compute the inverse.  We recover the values of `nc`, as expected:
+
+    >>> ncfdtrinc(2, 3, p, 15)
+    array([ 0.5,  1.5,  2. ])
 
     """)
 
@@ -5734,18 +5942,34 @@ add_newdoc("scipy.special", "pdtrik",
     """)
 
 add_newdoc("scipy.special", "poch",
-    """
+    r"""
     poch(z, m)
 
     Rising factorial (z)_m
 
-    The Pochhammer symbol (rising factorial), is defined as::
+    The Pochhammer symbol (rising factorial), is defined as
 
-        (z)_m = gamma(z + m) / gamma(z)
+    .. math::
 
-    For positive integer `m` it reads::
+        (z)_m = \frac{\Gamma(z + m)}{\Gamma(z)}
 
-        (z)_m = z * (z + 1) * ... * (z + m - 1)
+    For positive integer `m` it reads
+
+    .. math::
+
+        (z)_m = z (z + 1) ... (z + m - 1)
+
+    Parameters
+    ----------
+    z : array_like
+        (int or float)
+    m : array_like
+        (int or float)
+
+    Returns
+    -------
+    poch : ndarray
+        The value of the function.
     """)
 
 add_newdoc("scipy.special", "pro_ang1",
@@ -6297,10 +6521,15 @@ add_newdoc("scipy.special", "wofz",
     --------
     >>> from scipy import special
     >>> import matplotlib.pyplot as plt
+
     >>> x = np.linspace(-3, 3)
-    >>> plt.plot(x, special.wofz(x))
+    >>> z = special.wofz(x)
+
+    >>> plt.plot(x, z.real, label='wofz(x).real')
+    >>> plt.plot(x, z.imag, label='wofz(x).imag')
     >>> plt.xlabel('$x$')
-    >>> plt.ylabel('$wofz(x)$')
+    >>> plt.legend(framealpha=1, shadow=True)
+    >>> plt.grid(alpha=0.25)
     >>> plt.show()
 
     """)

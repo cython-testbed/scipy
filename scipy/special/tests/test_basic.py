@@ -19,16 +19,20 @@
 
 from __future__ import division, print_function, absolute_import
 
+import sys
+import platform
 import itertools
 
 import numpy as np
 from numpy import (array, isnan, r_, arange, finfo, pi, sin, cos, tan, exp,
         log, zeros, sqrt, asarray, inf, nan_to_num, real, arctan, float_)
 
+import pytest
+from pytest import raises as assert_raises
 from numpy.testing import (assert_equal, assert_almost_equal,
         assert_array_equal, assert_array_almost_equal, assert_approx_equal,
-        assert_, dec, run_module_suite, assert_allclose,
-        assert_raises, assert_array_almost_equal_nulp)
+        assert_, assert_allclose,
+        assert_array_almost_equal_nulp)
 
 from scipy import special
 import scipy.special._ufuncs as cephes
@@ -303,7 +307,7 @@ class TestCephes(object):
         assert_equal(cephes.expm1(np.nan), np.nan)
 
     # Earlier numpy version don't guarantee that npy_cexp conforms to C99.
-    @dec.skipif(NumpyVersion(np.__version__) < '1.9.0')
+    @pytest.mark.skipif(NumpyVersion(np.__version__) < '1.9.0', reason='')
     def test_expm1_complex(self):
         expm1 = cephes.expm1
         assert_equal(expm1(0 + 0j), 0 + 0j)
@@ -323,7 +327,7 @@ class TestCephes(object):
         assert_equal(expm1(complex(np.nan, 1)), complex(np.nan, np.nan))
         assert_equal(expm1(complex(np.nan, np.nan)), complex(np.nan, np.nan))
 
-    @dec.knownfailureif(True, 'The real part of expm1(z) bad at these points')
+    @pytest.mark.xfail(reason='The real part of expm1(z) bad at these points')
     def test_expm1_complex_hard(self):
         # The real part of this function is difficult to evaluate when
         # z.real = -log(cos(z.imag)).
@@ -539,7 +543,7 @@ class TestCephes(object):
         assert_equal(log1p(np.inf), np.inf)
 
     # earlier numpy version don't guarantee that npy_clog conforms to C99
-    @dec.skipif(NumpyVersion(np.__version__) < '1.9.0')
+    @pytest.mark.skipif(NumpyVersion(np.__version__) < '1.9.0', reason='')
     def test_log1p_complex(self):
         log1p = cephes.log1p
         c = complex
@@ -688,16 +692,30 @@ class TestCephes(object):
         assert_equal(cephes.ncfdtr(1,1,1,0),0.0)
 
     def test_ncfdtri(self):
-        assert_equal(cephes.ncfdtri(1,1,1,0),0.0)
+        assert_equal(cephes.ncfdtri(1, 1, 1, 0), 0.0)
+        f = [0.5, 1, 1.5]
+        p = cephes.ncfdtr(2, 3, 1.5, f)
+        assert_allclose(cephes.ncfdtri(2, 3, 1.5, p), f)
 
     def test_ncfdtridfd(self):
-        cephes.ncfdtridfd(1,0.5,0,1)
+        dfd = [1, 2, 3]
+        p = cephes.ncfdtr(2, dfd, 0.25, 15)
+        assert_allclose(cephes.ncfdtridfd(2, p, 0.25, 15), dfd)
 
-    def __check_ncfdtridfn(self):
-        cephes.ncfdtridfn(1,0.5,0,1)
+    @pytest.mark.xfail((sys.platform == "win32" and
+                        platform.architecture()[0] == "32bit" and
+                        NumpyVersion(np.__version__) < "1.14.0"),
+                       reason=("Can fail on win32 if FPU is in wrong mode, "
+                               "see gh-7726"))
+    def test_ncfdtridfn(self):
+        dfn = [1, 2, 3]
+        p = cephes.ncfdtr(dfn, 2, 0.25, 15)
+        assert_allclose(cephes.ncfdtridfn(p, 2, 0.25, 15), dfn)
 
-    def __check_ncfdtrinc(self):
-        cephes.ncfdtrinc(1,0.5,0,1)
+    def test_ncfdtrinc(self):
+        nc = [0.5, 1.5, 2.0]
+        p = cephes.ncfdtr(2, 3, nc, 15)
+        assert_allclose(cephes.ncfdtrinc(2, 3, p, 15), nc)
 
     def test_nctdtr(self):
         assert_equal(cephes.nctdtr(1,0,0),0.5)
@@ -2534,7 +2552,7 @@ class TestBessel(object):
         finally:
             np.seterr(**olderr)
 
-    @dec.slow
+    @pytest.mark.slow
     def test_iv_cephes_vs_amos_mass_test(self):
         N = 1000000
         np.random.seed(1)
@@ -3105,22 +3123,22 @@ def test_sph_harm():
     sqrt = np.sqrt
     sin = np.sin
     cos = np.cos
-    yield (assert_array_almost_equal, sh(0,0,0,0),
+    assert_array_almost_equal(sh(0,0,0,0),
            0.5/sqrt(pi))
-    yield (assert_array_almost_equal, sh(-2,2,0.,pi/4),
+    assert_array_almost_equal(sh(-2,2,0.,pi/4),
            0.25*sqrt(15./(2.*pi)) *
            (sin(pi/4))**2.)
-    yield (assert_array_almost_equal, sh(-2,2,0.,pi/2),
+    assert_array_almost_equal(sh(-2,2,0.,pi/2),
            0.25*sqrt(15./(2.*pi)))
-    yield (assert_array_almost_equal, sh(2,2,pi,pi/2),
+    assert_array_almost_equal(sh(2,2,pi,pi/2),
            0.25*sqrt(15/(2.*pi)) *
            exp(0+2.*pi*1j)*sin(pi/2.)**2.)
-    yield (assert_array_almost_equal, sh(2,4,pi/4.,pi/3.),
+    assert_array_almost_equal(sh(2,4,pi/4.,pi/3.),
            (3./8.)*sqrt(5./(2.*pi)) *
            exp(0+2.*pi/4.*1j) *
            sin(pi/3.)**2. *
            (7.*cos(pi/3.)**2.-1))
-    yield (assert_array_almost_equal, sh(4,4,pi/8.,pi/6.),
+    assert_array_almost_equal(sh(4,4,pi/8.,pi/6.),
            (3./16.)*sqrt(35./(2.*pi)) *
            exp(0+4.*pi/8.*1j)*sin(pi/6.)**4.)
 
@@ -3276,10 +3294,11 @@ def test_error_raising():
 
 def test_xlogy():
     def xfunc(x, y):
-        if x == 0 and not np.isnan(y):
-            return x
-        else:
-            return x*np.log(y)
+        with np.errstate(invalid='ignore'):
+            if x == 0 and not np.isnan(y):
+                return x
+            else:
+                return x*np.log(y)
 
     z1 = np.asarray([(0,0), (0, np.nan), (0, np.inf), (1.0, 2.0)], dtype=float)
     z2 = np.r_[z1, [(0, 1j), (1, 1j)]]
@@ -3292,10 +3311,11 @@ def test_xlogy():
 
 def test_xlog1py():
     def xfunc(x, y):
-        if x == 0 and not np.isnan(y):
-            return x
-        else:
-            return x * np.log1p(y)
+        with np.errstate(invalid='ignore'):
+            if x == 0 and not np.isnan(y):
+                return x
+            else:
+                return x * np.log1p(y)
 
     z1 = np.asarray([(0,0), (0, np.nan), (0, np.inf), (1.0, 2.0),
                      (1, 1e-30)], dtype=float)
@@ -3390,6 +3410,3 @@ def test_pseudo_huber():
     w = np.vectorize(xfunc, otypes=[np.float64])(z[:,0], z[:,1])
     assert_func_equal(special.pseudo_huber, w, z, rtol=1e-13, atol=1e-13)
 
-
-if __name__ == "__main__":
-    run_module_suite()

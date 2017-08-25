@@ -20,12 +20,12 @@ from contextlib import contextmanager
 
 import numpy as np
 
-from numpy.testing import (assert_, assert_equal, assert_raises,
-                           run_module_suite)
+from numpy.testing import assert_, assert_equal
+from pytest import raises as assert_raises
 
-from scipy.io.matlab.streams import make_stream, \
-    GenericStream, cStringStream, FileStream, ZlibInputStream, \
-    _read_into, _read_string
+from scipy.io.matlab.streams import (make_stream,
+    GenericStream, cStringStream, FileStream, ZlibInputStream,
+    _read_into, _read_string)
 
 
 @contextmanager
@@ -127,7 +127,7 @@ class TestZlibInputStream(object):
 
         for size in SIZES:
             for read_size in READ_SIZES:
-                yield check, size, read_size
+                check(size, read_size)
 
     def test_read_max_length(self):
         size = 1234
@@ -180,6 +180,3 @@ class TestZlibInputStream(object):
         stream.seek(1024)
         assert_(stream.all_data_read())
 
-
-if __name__ == "__main__":
-    run_module_suite()

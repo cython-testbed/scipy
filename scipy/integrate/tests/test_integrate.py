@@ -8,11 +8,13 @@ import numpy as np
 from numpy import (arange, zeros, array, dot, sqrt, cos, sin, eye, pi, exp,
                    allclose)
 
+from scipy._lib._numpy_compat import _assert_warns
 from scipy._lib.six import xrange
 
 from numpy.testing import (
-    assert_, run_module_suite, assert_array_almost_equal,
-    assert_raises, assert_allclose, assert_array_equal, assert_equal)
+    assert_, assert_array_almost_equal,
+    assert_allclose, assert_array_equal, assert_equal)
+from pytest import raises as assert_raises
 from scipy.integrate import odeint, ode, complex_ode
 
 #------------------------------------------------------------------------------
@@ -64,6 +66,7 @@ class TestODEClass(object):
 
         assert_array_equal(z, ig.y)
         assert_(ig.successful(), (problem, method))
+        assert_(ig.get_return_code() > 0, (problem, method))
         assert_(problem.verify(array([z]), problem.stop_t), (problem, method))
 
 
@@ -608,6 +611,14 @@ class ODECheckParameterUse(object):
             solver.set_jac_params(omega)
         self._check_solver(solver)
 
+    def test_warns_on_failure(self):
+        # Set nsteps small to ensure failure
+        solver = self._get_solver(f, jac)
+        solver.set_integrator(self.solver_name, nsteps=1)
+        ic = [1.0, 0.0]
+        solver.set_initial_value(ic, 0.0)
+        _assert_warns(UserWarning, solver.integrate, pi)
+
 
 class TestDOPRI5CheckParameterUse(ODECheckParameterUse):
     solver_name = 'dopri5'
@@ -764,6 +775,3 @@ def test_odeint_bad_shapes():
     # shape of array returned by badjac(x, t) is not correct.
     assert_raises(RuntimeError, odeint, sys1, [10, 10], [0, 1], Dfun=badjac)
 
-
-if __name__ == "__main__":
-    run_module_suite()

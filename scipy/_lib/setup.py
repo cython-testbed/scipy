@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 from __future__ import division, print_function, absolute_import
 
 import os
@@ -22,6 +21,9 @@ def configuration(parent_package='',top_path=None):
                          sources=["src/_test_ccallback.c"],
                          depends=depends,
                          include_dirs=[include_dir])
+
+    config.add_extension("_fpumode",
+                         sources=["_fpumode.c"])
 
     return config
 

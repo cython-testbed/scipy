@@ -3,8 +3,8 @@ from __future__ import division, print_function, absolute_import
 import numpy as np
 from numpy import array, sqrt
 from numpy.testing import (assert_array_almost_equal, assert_equal,
-                           assert_almost_equal, assert_allclose, assert_raises,
-                           run_module_suite)
+                           assert_almost_equal, assert_allclose)
+from pytest import raises as assert_raises
 
 from scipy._lib.six import xrange
 from scipy import integrate
@@ -221,7 +221,7 @@ class _test_sh_jacobi(object):
         psub = np.poly1d([2,-1])
         q = 4 * np.random.random()
         p = q-1 + 2*np.random.random()
-        #print "shifted jacobi p,q = ", p, q
+        # print("shifted jacobi p,q = ", p, q)
         G0 = orth.sh_jacobi(0,p,q)
         G1 = orth.sh_jacobi(1,p,q)
         G2 = orth.sh_jacobi(2,p,q)
@@ -749,6 +749,3 @@ def test_gh_6721():
     # Regresssion test for gh_6721. This should not raise.
     sc.chebyt(65)(0.2)
 
-
-if __name__ == "__main__":
-    run_module_suite()

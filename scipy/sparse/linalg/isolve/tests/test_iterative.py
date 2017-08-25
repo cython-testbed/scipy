@@ -6,7 +6,8 @@ from __future__ import division, print_function, absolute_import
 import numpy as np
 
 from numpy.testing import (assert_equal, assert_array_equal,
-     assert_, assert_allclose, assert_raises, run_module_suite)
+     assert_, assert_allclose)
+from pytest import raises as assert_raises
 from scipy._lib._numpy_compat import suppress_warnings
 
 from numpy import zeros, arange, array, abs, max, ones, eye, iscomplexobj
@@ -14,7 +15,7 @@ from scipy.linalg import norm
 from scipy.sparse import spdiags, csr_matrix, SparseEfficiencyWarning
 
 from scipy.sparse.linalg import LinearOperator, aslinearoperator
-from scipy.sparse.linalg.isolve import cg, cgs, bicg, bicgstab, gmres, qmr, minres, lgmres
+from scipy.sparse.linalg.isolve import cg, cgs, bicg, bicgstab, gmres, qmr, minres, lgmres, gcrotmk
 
 # TODO check that method preserve shape and type
 # TODO test both preconditioner methods
@@ -36,7 +37,7 @@ class Case(object):
 class IterativeParams(object):
     def __init__(self):
         # list of tuples (solver, symmetric, positive_definite )
-        solvers = [cg, cgs, bicg, bicgstab, gmres, qmr, minres, lgmres]
+        solvers = [cg, cgs, bicg, bicgstab, gmres, qmr, minres, lgmres, gcrotmk]
         sym_solvers = [minres, cg]
         posdef_solvers = [cg]
         real_solvers = [minres]
@@ -151,10 +152,10 @@ def check_maxiter(solver, case):
     def callback(x):
         residuals.append(norm(b - case.A*x))
 
-    x, info = solver(A, b, x0=x0, tol=tol, maxiter=3, callback=callback)
+    x, info = solver(A, b, x0=x0, tol=tol, maxiter=1, callback=callback)
 
-    assert_equal(len(residuals), 3)
-    assert_equal(info, 3)
+    assert_equal(len(residuals), 1)
+    assert_equal(info, 1)
 
 
 def test_maxiter():
@@ -162,7 +163,7 @@ def test_maxiter():
     for solver in params.solvers:
         if solver in case.skip:
             continue
-        yield check_maxiter, solver, case
+        check_maxiter(solver, case)
 
 
 def assert_normclose(a, b, tol=1e-8):
@@ -195,7 +196,7 @@ def test_convergence():
         for case in params.cases:
             if solver in case.skip:
                 continue
-            yield check_convergence, solver, case
+            check_convergence(solver, case)
 
 
 def check_precond_dummy(solver, case):
@@ -236,7 +237,61 @@ def test_precond_dummy():
     for solver in params.solvers:
         if solver in case.skip:
             continue
-        yield check_precond_dummy, solver, case
+        check_precond_dummy(solver, case)
+
+
+def check_precond_inverse(solver, case):
+    tol = 1e-8
+
+    def inverse(b,which=None):
+        """inverse preconditioner"""
+        A = case.A
+        if not isinstance(A, np.ndarray):
+            A = A.todense()
+        return np.linalg.solve(A, b)
+
+    def rinverse(b,which=None):
+        """inverse preconditioner"""
+        A = case.A
+        if not isinstance(A, np.ndarray):
+            A = A.todense()
+        return np.linalg.solve(A.T, b)
+
+    matvec_count = [0]
+
+    def matvec(b):
+        matvec_count[0] += 1
+        return case.A.dot(b)
+
+    def rmatvec(b):
+        matvec_count[0] += 1
+        return case.A.T.dot(b)
+
+    b = arange(case.A.shape[0], dtype=float)
+    x0 = 0*b
+
+    A = LinearOperator(case.A.shape, matvec, rmatvec=rmatvec)
+    precond = LinearOperator(case.A.shape, inverse, rmatvec=rinverse)
+
+    # Solve with preconditioner
+    matvec_count = [0]
+    x, info = solver(A, b, M=precond, x0=x0, tol=tol)
+
+    assert_equal(info, 0)
+    assert_normclose(case.A.dot(x), b, tol)
+
+    # Solution should be nearly instant
+    assert_(matvec_count[0] <= 3, repr(matvec_count))
+
+
+def test_precond_inverse():
+    case = params.Poisson1D
+    for solver in params.solvers:
+        if solver in case.skip:
+            continue
+        if solver is qmr:
+            continue
+        check_precond_inverse(solver, case)
 
 
 def test_gmres_basic():
@@ -252,9 +307,9 @@ def test_gmres_basic():
 
 def test_reentrancy():
     non_reentrant = [cg, cgs, bicg, bicgstab, gmres, qmr]
-    reentrant = [lgmres, minres]
+    reentrant = [lgmres, minres, gcrotmk]
     for solver in reentrant + non_reentrant:
-        yield _check_reentrancy, solver, solver in reentrant
+        _check_reentrancy(solver, solver in reentrant)
 
 
 def _check_reentrancy(solver, is_reentrant):
@@ -349,6 +404,3 @@ class TestGMRES(object):
         assert_allclose(r_x, x)
         assert_(r_info == info)
 
-
-if __name__ == "__main__":
-    run_module_suite()

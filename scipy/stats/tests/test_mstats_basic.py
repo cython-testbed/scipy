@@ -12,12 +12,12 @@ from numpy.ma import masked, nomask
 
 import scipy.stats.mstats as mstats
 from scipy import stats
-from common_tests import check_named_results
-from numpy.testing import run_module_suite
-from numpy.testing.decorators import skipif
+from .common_tests import check_named_results
+import pytest
+from pytest import raises as assert_raises
 from numpy.ma.testutils import (assert_equal, assert_almost_equal,
     assert_array_almost_equal, assert_array_almost_equal_nulp, assert_,
-    assert_allclose, assert_raises, assert_array_equal)
+    assert_allclose, assert_array_equal)
 from scipy._lib._numpy_compat import suppress_warnings
 
 
@@ -61,7 +61,7 @@ class TestGMean(object):
         desired1 = mstats.gmean(a,axis=-1)
         assert_almost_equal(actual, desired1, decimal=14)
 
-    @skipif(not hasattr(np, 'float96'), 'cannot find float96 so skipping')
+    @pytest.mark.skipif(not hasattr(np, 'float96'), reason='cannot find float96 so skipping')
     def test_1D_float96(self):
         a = ma.array((1,2,3,4), mask=(0,0,0,1))
         actual_dt = mstats.gmean(a, dtype=np.float96)
@@ -102,7 +102,7 @@ class TestHMean(object):
         desired1 = mstats.hmean(a,axis=-1)
         assert_almost_equal(actual, desired1, decimal=14)
 
-    @skipif(not hasattr(np, 'float96'), 'cannot find float96 so skipping')
+    @pytest.mark.skipif(not hasattr(np, 'float96'), reason='cannot find float96 so skipping')
     def test_1D_float96(self):
         a = ma.array((1,2,3,4), mask=(0,0,0,1))
         actual_dt = mstats.hmean(a, dtype=np.float96)
@@ -343,6 +343,9 @@ class TestTrimming(object):
                          296,299,306,376,428,515,666,1310,2611])
         assert_almost_equal(mstats.winsorize(data,(0.2,0.2)).var(ddof=1),
                             21551.4, 1)
+        assert_almost_equal(
+            mstats.winsorize(data, (0.2,0.2),(False,False)).var(ddof=1),
+            11887.3, 1)
         data[5] = masked
         winsorized = mstats.winsorize(data)
         assert_equal(winsorized.mask, data.mask)
@@ -473,7 +476,7 @@ class TestMoments(object):
 
 
 class TestPercentile(object):
-    def setUp(self):
+    def setup_method(self):
         self.a1 = [3,4,5,10,-3,-5,6]
         self.a2 = [3,-6,-2,8,7,4,2,1]
         self.a3 = [3.,4,5,10,-3,-5,-6,7.0]
@@ -1310,6 +1313,3 @@ class TestCompareWithStats(object):
             rm = stats.mstats.obrientransform(xm)
             assert_almost_equal(r.T, rm[0:len(x)])
 
-
-if __name__ == "__main__":
-    run_module_suite()

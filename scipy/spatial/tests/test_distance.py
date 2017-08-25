@@ -40,9 +40,10 @@ from scipy._lib.six import xrange, u
 
 import numpy as np
 from numpy.linalg import norm
-from numpy.testing import (verbose, run_module_suite, assert_,
-                           assert_raises, assert_array_equal, assert_equal,
+from numpy.testing import (verbose, assert_,
+                           assert_array_equal, assert_equal,
                            assert_almost_equal, assert_allclose)
+from pytest import raises as assert_raises
 
 from scipy.spatial.distance import (squareform, pdist, cdist, num_obs_y,
                                     num_obs_dm, is_valid_dm, is_valid_y,
@@ -119,7 +120,7 @@ load_testing_files()
 
 class TestCdist(object):
 
-    def setUp(self):
+    def setup_method(self):
         self.rnd_eo_names = ['random-float32-data', 'random-int-data',
                              'random-uint-data', 'random-double-data',
                              'random-bool-data']
@@ -321,7 +322,7 @@ class TestCdist(object):
 
 class TestPdist(object):
 
-    def setUp(self):
+    def setup_method(self):
         self.rnd_eo_names = ['random-float32-data', 'random-int-data',
                              'random-uint-data', 'random-double-data',
                              'random-bool-data']
@@ -1056,7 +1057,7 @@ def _assert_within_tol(a, b, atol, verbose_=False):
 
 class TestSomeDistanceFunctions(object):
 
-    def setUp(self):
+    def setup_method(self):
         # 1D arrays
         x = np.array([1.0, 2.0, 3.0])
         y = np.array([1.0, 1.0, 5.0])
@@ -1124,11 +1125,11 @@ class TestSquareForm(object):
 
     def test_squareform_matrix(self):
         for dtype in self.checked_dtypes:
-            yield self.check_squareform_matrix, dtype
+            self.check_squareform_matrix(dtype)
 
     def test_squareform_vector(self):
         for dtype in self.checked_dtypes:
-            yield self.check_squareform_vector, dtype
+            self.check_squareform_vector(dtype)
 
     def check_squareform_matrix(self, dtype):
         A = np.zeros((0,0), dtype=dtype)
@@ -1162,7 +1163,7 @@ class TestSquareForm(object):
 
     def test_squareform_multi_matrix(self):
         for n in xrange(2, 5):
-            yield self.check_squareform_multi_matrix, n
+            self.check_squareform_multi_matrix(n)
 
     def check_squareform_multi_matrix(self, n):
         X = np.random.rand(n, 4)
@@ -1594,6 +1595,3 @@ def test__validate_vector():
     x = [[1, 2], [3, 4]]
     assert_raises(ValueError, _validate_vector, x)
 
-
-if __name__ == "__main__":
-    run_module_suite()

@@ -11,8 +11,8 @@ from glob import glob
 from contextlib import contextmanager
 
 import numpy as np
-from numpy.testing import (assert_, assert_allclose, assert_raises,
-    assert_equal, run_module_suite)
+from numpy.testing import assert_, assert_allclose, assert_equal
+from pytest import raises as assert_raises
 
 from scipy.io.netcdf import netcdf_file
 
@@ -356,7 +356,7 @@ def test_append_recordDimension():
         with netcdf_file('withRecordDimension.nc') as f:
             with assert_raises(KeyError) as ar:            
                 f.variables['testData']._attributes['data']
-            ex = ar.exception
+            ex = ar.value
             assert_equal(ex.args[0], 'data')
 
 def test_maskandscale():
@@ -462,6 +462,3 @@ def test_read_withMaskAndScaleFalse():
         vardata = f.variables['var3_fillvalAndMissingValue'][:]
         assert_mask_matches(vardata, [False, False, False])
         assert_equal(vardata, [1, 2, 3])
-
-if __name__ == "__main__":
-    run_module_suite()

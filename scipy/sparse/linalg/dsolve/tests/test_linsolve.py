@@ -5,12 +5,12 @@ import threading
 import numpy as np
 from numpy import array, finfo, arange, eye, all, unique, ones, dot, matrix
 import numpy.random as random
-from numpy.testing import (run_module_suite, dec,
-        assert_array_almost_equal, assert_raises, assert_almost_equal,
+from numpy.testing import (
+        assert_array_almost_equal, assert_almost_equal,
         assert_equal, assert_array_equal, assert_, assert_allclose,
         assert_warns)
-
-from scipy._lib._numpy_compat import assert_raises_regex
+import pytest
+from pytest import raises as assert_raises
 
 import scipy.linalg
 from scipy.linalg import norm, inv
@@ -42,7 +42,7 @@ def toarray(a):
 
 
 class TestFactorized(object):
-    def setUp(self):
+    def setup_method(self):
         n = 5
         d = arange(n) + 1
         self.n = n
@@ -65,9 +65,10 @@ class TestFactorized(object):
 
     def test_singular_without_umfpack(self):
         use_solver(useUmfpack=False)
-        assert_raises_regex(RuntimeError, "Factor is exactly singular", self._check_singular)
+        with assert_raises(RuntimeError, message="Factor is exactly singular"):
+            self._check_singular()
 
-    @dec.skipif(not has_umfpack)
+    @pytest.mark.skipif(not has_umfpack, reason="umfpack not available")
     def test_singular_with_umfpack(self):
         use_solver(useUmfpack=True)
         with suppress_warnings() as sup:
@@ -78,17 +79,18 @@ class TestFactorized(object):
         use_solver(useUmfpack=False)
         self._check_non_singular()
 
-    @dec.skipif(not has_umfpack)
+    @pytest.mark.skipif(not has_umfpack, reason="umfpack not available")
     def test_non_singular_with_umfpack(self):
         use_solver(useUmfpack=True)
         self._check_non_singular()
 
     def test_cannot_factorize_nonsquare_matrix_without_umfpack(self):
         use_solver(useUmfpack=False)
-        assert_raises_regex(ValueError, "can only factor square matrices",
-                            factorized, self.A[:,:4])
+        msg = "can only factor square matrices"
+        with assert_raises(ValueError, message=msg):
+            factorized(self.A[:, :4])
 
-    @dec.skipif(not has_umfpack)
+    @pytest.mark.skipif(not has_umfpack, reason="umfpack not available")
     def test_factorizes_nonsquare_matrix_with_umfpack(self):
         use_solver(useUmfpack=True)
         # does not raise
@@ -101,11 +103,15 @@ class TestFactorized(object):
         B = random.rand(4, 3)
         BB = random.rand(self.n, 3, 9)
 
-        assert_raises_regex(ValueError, "is of incompatible size", solve, b)
-        assert_raises_regex(ValueError, "is of incompatible size", solve, B)
-        assert_raises_regex(ValueError, "object too deep for desired array", solve, BB)
+        with assert_raises(ValueError, message="is of incompatible size"):
+            solve(b)
+        with assert_raises(ValueError, message="is of incompatible size"):
+            solve(B)
+        with assert_raises(ValueError,
+                           message="object too deep for desired array"):
+            solve(BB)
 
-    @dec.skipif(not has_umfpack)
+    @pytest.mark.skipif(not has_umfpack, reason="umfpack not available")
     def test_call_with_incorrectly_sized_matrix_with_umfpack(self):
         use_solver(useUmfpack=True)
         solve = factorized(self.A)
@@ -115,18 +121,21 @@ class TestFactorized(object):
 
         # does not raise
         solve(b)
-        assert_raises_regex(ValueError, "object too deep for desired array", solve, B)
-        assert_raises_regex(ValueError, "object too deep for desired array", solve, BB)
+        msg = "object too deep for desired array"
+        with assert_raises(ValueError, message=msg):
+            solve(B)
+        with assert_raises(ValueError, message=msg):
+            solve(BB)
 
     def test_call_with_cast_to_complex_without_umfpack(self):
         use_solver(useUmfpack=False)
         solve = factorized(self.A)
         b = random.rand(4)
         for t in [np.complex64, np.complex128]:
-            assert_raises_regex(TypeError, "Cannot cast array data", solve,
-                                b.astype(t))
+            with assert_raises(TypeError, message="Cannot cast array data"):
+                solve(b.astype(t))
 
-    @dec.skipif(not has_umfpack)
+    @pytest.mark.skipif(not has_umfpack, reason="umfpack not available")
     def test_call_with_cast_to_complex_with_umfpack(self):
         use_solver(useUmfpack=True)
         solve = factorized(self.A)
@@ -134,7 +143,7 @@ class TestFactorized(object):
         for t in [np.complex64, np.complex128]:
             assert_warns(np.ComplexWarning, solve, b.astype(t))
 
-    @dec.skipif(not has_umfpack)
+    @pytest.mark.skipif(not has_umfpack, reason="umfpack not available")
     def test_assume_sorted_indices_flag(self):
         # a sparse matrix with unsorted indices
         unsorted_inds = np.array([2, 0, 1, 0])
@@ -145,7 +154,9 @@ class TestFactorized(object):
 
         # should raise when incorrectly assuming indices are sorted
         use_solver(useUmfpack=True, assumeSortedIndices=True)
-        assert_raises_regex(RuntimeError, "UMFPACK_ERROR_invalid_matrix", factorized, A)
+        with assert_raises(RuntimeError,
+                           message="UMFPACK_ERROR_invalid_matrix"):
+            factorized(A)
 
         # should sort indices and succeed when not assuming indices are sorted
         use_solver(useUmfpack=True, assumeSortedIndices=False)
@@ -157,7 +168,7 @@ class TestFactorized(object):
 
 
 class TestLinsolve(object):
-    def setUp(self):
+    def setup_method(self):
         use_solver(useUmfpack=False)
 
     def test_singular(self):
@@ -257,7 +268,7 @@ class TestLinsolve(object):
         assert_array_almost_equal(X, sX.todense())
 
     @sup_sparse_efficiency
-    @dec.skipif(not has_umfpack)
+    @pytest.mark.skipif(not has_umfpack, reason="umfpack not available")
     def test_shape_compatibility(self):
         use_solver(useUmfpack=True)
         A = csc_matrix([[1., 0], [0, 2]])
@@ -392,7 +403,7 @@ class TestLinsolve(object):
 
 
 class TestSplu(object):
-    def setUp(self):
+    def setup_method(self):
         use_solver(useUmfpack=False)
         n = 40
         d = arange(n) + 1
@@ -648,7 +659,7 @@ class TestSplu(object):
 
 
 class TestSpsolveTriangular(object):
-    def setUp(self):
+    def setup_method(self):
         use_solver(useUmfpack=False)
 
     def test_singular(self):
@@ -702,6 +713,3 @@ class TestSpsolveTriangular(object):
                         x = spsolve_triangular(A, b, lower=lower)
                         assert_array_almost_equal(A.dot(x), b)
 
-
-if __name__ == "__main__":
-    run_module_suite()

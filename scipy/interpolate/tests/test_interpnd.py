@@ -3,8 +3,8 @@ from __future__ import division, print_function, absolute_import
 import os
 
 import numpy as np
-from numpy.testing import assert_equal, assert_allclose, assert_almost_equal, \
-        run_module_suite, assert_raises
+from numpy.testing import assert_equal, assert_allclose, assert_almost_equal
+from pytest import raises as assert_raises
 from scipy._lib._numpy_compat import suppress_warnings
 
 import scipy.interpolate.interpnd as interpnd
@@ -354,6 +354,3 @@ class TestCloughTocher2DInterpolator(object):
         ip2 = pickle.loads(pickle.dumps(ip))
 
         assert_almost_equal(ip(0.5, 0.5), ip2(0.5, 0.5))
-
-if __name__ == "__main__":
-    run_module_suite()

@@ -34,8 +34,9 @@
 
 import numpy as np
 from itertools import product
-from numpy.testing import (run_module_suite, assert_equal,
-                           assert_raises, assert_allclose)
+
+from numpy.testing import assert_equal, assert_allclose
+from pytest import raises as assert_raises
 
 from scipy.signal import upfirdn, firwin, lfilter
 from scipy.signal._upfirdn import _output_len
@@ -172,6 +173,3 @@ class TestUpfirdn(object):
             tests.append(UpFIRDnCase(p, q, h, x_dtype))
 
         return tests
-
-if __name__ == "__main__":
-    run_module_suite()

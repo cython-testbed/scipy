@@ -3,8 +3,9 @@ from __future__ import division, print_function, absolute_import
 # Scipy imports.
 import numpy as np
 from numpy import pi
-from numpy.testing import (assert_array_almost_equal, assert_raises,
-                           run_module_suite, assert_equal, assert_warns)
+from numpy.testing import (assert_array_almost_equal,
+                           assert_equal, assert_warns)
+from pytest import raises as assert_raises
 from scipy.odr import Data, Model, ODR, RealData, OdrStop, OdrWarning
 
 
@@ -343,6 +344,3 @@ class TestODR(object):
         result = job.run()
         assert_equal(result.info, 2)
 
-
-if __name__ == "__main__":
-    run_module_suite()

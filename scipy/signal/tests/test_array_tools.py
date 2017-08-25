@@ -2,11 +2,11 @@ from __future__ import division, print_function, absolute_import
 
 import numpy as np
 
-from numpy.testing import run_module_suite, \
-    assert_array_equal, assert_raises
+from numpy.testing import assert_array_equal
+from pytest import raises as assert_raises
 
-from scipy.signal._arraytools import axis_slice, axis_reverse, \
-     odd_ext, even_ext, const_ext, zero_ext
+from scipy.signal._arraytools import (axis_slice, axis_reverse,
+     odd_ext, even_ext, const_ext, zero_ext)
 
 
 class TestArrayTools(object):
@@ -111,6 +111,3 @@ class TestArrayTools(object):
                              [0, 0, 0, 0, 0]])
         assert_array_equal(zero, expected)
 
-
-if __name__ == "__main__":
-    run_module_suite()
