@@ -54,6 +54,8 @@ Eigenvalue Problems
    eigvalsh - Find just the eigenvalues of a Hermitian or symmetric matrix
    eig_banded - Find the eigenvalues and eigenvectors of a banded matrix
    eigvals_banded - Find just the eigenvalues of a banded matrix
+   eigh_tridiagonal - Find the eigenvalues and eigenvectors of a tridiagonal matrix
+   eigvalsh_tridiagonal - Find just the eigenvalues of a tridiagonal matrix
 
 Decompositions
 ==============
@@ -126,6 +128,14 @@ Matrix Equation Solvers
    solve_discrete_lyapunov - Solve the discrete-time Lyapunov equation
 
 
+Sketches and Random Projections
+===============================
+
+.. autosummary::
+   :toctree: generated/
+
+   clarkson_woodruff_transform - Applies the Clarkson Woodruff Sketch (a.k.a CountMin Sketch)
+
 Special Matrices
 ================
 
@@ -167,7 +177,7 @@ Low-level routines
 
    `scipy.linalg.cython_lapack` -- Low-level LAPACK functions for Cython
 
-"""
+"""  # noqa: E501
 
 from __future__ import division, print_function, absolute_import
 
@@ -190,6 +200,7 @@ from .special_matrices import *
 from ._solvers import *
 from ._procrustes import *
 from ._decomp_update import *
+from ._sketches import *
 
 __all__ = [s for s in dir() if not s.startswith('_')]
 
