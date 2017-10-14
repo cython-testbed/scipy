@@ -8,6 +8,9 @@ import numpy as np
 from numpy.testing import assert_, assert_allclose
 from numpy import pi
 import pytest
+import itertools
+
+from distutils.version import LooseVersion
 
 import scipy.special as sc
 from scipy._lib.six import with_metaclass
@@ -102,11 +105,16 @@ def test_hyp0f1_gh_1609():
 # hyp2f1
 # ------------------------------------------------------------------------------
 
-@check_version(mpmath, '0.14')
+@check_version(mpmath, '1.0.0')
 def test_hyp2f1_strange_points():
     pts = [
-        (2, -1, -1, 0.7),
-        (2, -2, -2, 0.7),
+        (2, -1, -1, 0.7),  # expected: 2.4
+        (2, -2, -2, 0.7),  # expected: 3.87
+    ]
+    pts += list(itertools.product([2, 1, -0.7, -1000], repeat=4))
+    pts = [
+        (a, b, c, x) for a, b, c, x in pts 
+        if b == c and round(b) == b and b < 0 and b != -1000
     ]
     kw = dict(eliminate=True)
     dataset = [p + (float(mpmath.hyp2f1(*p, **kw)),) for p in pts]
@@ -1750,14 +1758,18 @@ class TestSystematic(object):
 
     @pytest.mark.xfail(condition=_is_32bit_platform, reason="see gh-3551 for bad points")
     def test_rf(self):
-        def mppoch(a, m):
-            # deal with cases where the result in double precision
-            # hits exactly a non-positive integer, but the
-            # corresponding extended-precision mpf floats don't
-            if float(a + m) == int(a + m) and float(a + m) <= 0:
-                a = mpmath.mpf(a)
-                m = int(a + m) - a
-            return mpmath.rf(a, m)
+        if LooseVersion(mpmath.__version__) >= LooseVersion("1.0.0"):
+            # no workarounds needed
+            mppoch = mpmath.rf
+        else:
+            def mppoch(a, m):
+                # deal with cases where the result in double precision
+                # hits exactly a non-positive integer, but the
+                # corresponding extended-precision mpf floats don't
+                if float(a + m) == int(a + m) and float(a + m) <= 0:
+                    a = mpmath.mpf(a)
+                    m = int(a + m) - a
+                return mpmath.rf(a, m)
 
         assert_mpmath_equal(sc.poch,
                             mppoch,
