@@ -140,7 +140,10 @@ class RungeKutta(OdeSolver):
             scale = atol + np.maximum(np.abs(y), np.abs(y_new)) * rtol
             error_norm = norm(error / scale)
 
-            if error_norm < 1:
+            if error_norm == 0.0:
+                h_abs *= MAX_FACTOR
+                step_accepted = True
+            elif error_norm < 1:
                 h_abs *= min(MAX_FACTOR,
                              max(1, SAFETY * error_norm ** (-1 / (order + 1))))
                 step_accepted = True
@@ -167,7 +170,7 @@ class RK23(RungeKutta):
     """Explicit Runge-Kutta method of order 3(2).
 
     The Bogacki-Shamping pair of formulas is used [1]_. The error is controlled
-    assuming 2nd order accuracy, but steps are taken using a 3rd oder accurate
+    assuming 2nd order accuracy, but steps are taken using a 3rd order accurate
     formula (local extrapolation is done). A cubic Hermit polynomial is used
     for the dense output.
 
@@ -256,7 +259,7 @@ class RK45(RungeKutta):
 
     The Dormand-Prince pair of formulas is used [1]_. The error is controlled
     assuming 4th order accuracy, but steps are taken using a 5th
-    oder accurate formula (local extrapolation is done). A quartic
+    order accurate formula (local extrapolation is done). A quartic
     interpolation polynomial is used for the dense output [2]_.
 
     Can be applied in a complex domain.
