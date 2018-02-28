@@ -149,6 +149,7 @@ def is_array_scalar(x):
     """
     return np.size(x) == 1
 
+
 _epsilon = sqrt(numpy.finfo(float).eps)
 
 
@@ -880,7 +881,7 @@ def fmin_bfgs(f, x0, fprime=None, args=(), gtol=1e-5, norm=Inf,
         1 : Maximum number of iterations exceeded.
         2 : Gradient and/or function calls not changing.
     allvecs  :  list
-        `OptimizeResult` at each iteration.  Only returned if retall is True.
+        The value of xopt at each iteration.  Only returned if retall is True.
 
     See also
     --------
@@ -1728,8 +1729,12 @@ def _minimize_scalar_bounded(func, bounds, args=(),
     -------
     maxiter : int
         Maximum number of iterations to perform.
-    disp : bool
-        Set to True to print convergence messages.
+    disp: int, optional
+        If non-zero, print messages.
+            0 : no message printing.
+            1 : non-convergence notification messages only.
+            2 : print a message on convergence too.
+            3 : print iteration results.
     xatol : float
         Absolute error in solution `xopt` acceptable for convergence.
 
@@ -2841,7 +2846,7 @@ def brute(func, ranges, args=(), Ns=20, full_output=0, finish=fmin,
         lrange = lrange[0]
 
     def _scalarfunc(*params):
-        params = squeeze(asarray(params))
+        params = asarray(params).flatten()
         return func(params, *args)
 
     vecfunc = vectorize(_scalarfunc)
