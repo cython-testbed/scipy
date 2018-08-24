@@ -128,7 +128,7 @@ before_install:
   - mkdir builds
   - cd builds
   - travis_retry pip install --upgrade pip setuptools wheel
-  - travis_retry pip install --install-option="--no-cython-compile"  https://github.com/cython/cython/archive/d902b7cf24eba5bc5be9e8001d639abd912adf6d.zip
+  - travis_retry pip install --install-option="--no-cython-compile"  https://github.com/cython/cython/archive/1834457912db7c810eb74dad41ee51241c4d0261.zip
   - if [ -n "$NUMPYSPEC" ]; then travis_retry pip install $NUMPYSPEC; fi
   - travis_retry pip install --upgrade pytest pytest-xdist pytest-faulthandler mpmath argparse Pillow codecov
   - travis_retry pip install gmpy2  # speeds up mpmath (scipy.special tests)
