@@ -29,6 +29,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from __future__ import division, print_function, absolute_import
+import warnings
 
 import numpy
 from . import _ni_support
@@ -107,8 +108,8 @@ def iterate_structure(structure, iterations, origin=None):
     ni = iterations - 1
     shape = [ii + ni * (ii - 1) for ii in structure.shape]
     pos = [ni * (structure.shape[ii] // 2) for ii in range(len(shape))]
-    slc = [slice(pos[ii], pos[ii] + structure.shape[ii], None)
-           for ii in range(len(shape))]
+    slc = tuple(slice(pos[ii], pos[ii] + structure.shape[ii], None)
+                for ii in range(len(shape)))
     out = numpy.zeros(shape, bool)
     out[slc] = structure != 0
     out = binary_dilation(out, structure, iterations=ni)
@@ -336,8 +337,8 @@ def binary_erosion(input, structure=None, iterations=1, mask=None, output=None,
 
     References
     ----------
-    .. [1] http://en.wikipedia.org/wiki/Erosion_%28morphology%29
-    .. [2] http://en.wikipedia.org/wiki/Mathematical_morphology
+    .. [1] https://en.wikipedia.org/wiki/Erosion_%28morphology%29
+    .. [2] https://en.wikipedia.org/wiki/Mathematical_morphology
 
     Examples
     --------
@@ -431,8 +432,8 @@ def binary_dilation(input, structure=None, iterations=1, mask=None,
 
     References
     ----------
-    .. [1] http://en.wikipedia.org/wiki/Dilation_%28morphology%29
-    .. [2] http://en.wikipedia.org/wiki/Mathematical_morphology
+    .. [1] https://en.wikipedia.org/wiki/Dilation_%28morphology%29
+    .. [2] https://en.wikipedia.org/wiki/Mathematical_morphology
 
     Examples
     --------
@@ -538,14 +539,20 @@ def binary_opening(input, structure=None, iterations=1, output=None,
     mask : array_like, optional
         If a mask is given, only those elements with a True value at
         the corresponding mask element are modified at each iteration.
+
+        .. versionadded:: 1.1.0
     border_value : int (cast to 0 or 1), optional
         Value at the border in the output array.
+
+        .. versionadded:: 1.1.0
     brute_force : boolean, optional
         Memory condition: if False, only the pixels whose value was changed in
         the last iteration are tracked as candidates to be updated in the
         current iteration; if true all pixels are considered as candidates for
         update, regardless of what happened in the previous iteration.
         False by default.
+
+        .. versionadded:: 1.1.0
 
     Returns
     -------
@@ -569,8 +576,8 @@ def binary_opening(input, structure=None, iterations=1, output=None,
 
     References
     ----------
-    .. [1] http://en.wikipedia.org/wiki/Opening_%28morphology%29
-    .. [2] http://en.wikipedia.org/wiki/Mathematical_morphology
+    .. [1] https://en.wikipedia.org/wiki/Opening_%28morphology%29
+    .. [2] https://en.wikipedia.org/wiki/Mathematical_morphology
 
     Examples
     --------
@@ -655,14 +662,20 @@ def binary_closing(input, structure=None, iterations=1, output=None,
     mask : array_like, optional
         If a mask is given, only those elements with a True value at
         the corresponding mask element are modified at each iteration.
+
+        .. versionadded:: 1.1.0
     border_value : int (cast to 0 or 1), optional
         Value at the border in the output array.
+
+        .. versionadded:: 1.1.0
     brute_force : boolean, optional
         Memory condition: if False, only the pixels whose value was changed in
         the last iteration are tracked as candidates to be updated in the
         current iteration; if true al pixels are considered as candidates for
         update, regardless of what happened in the previous iteration.
         False by default.
+
+        .. versionadded:: 1.1.0
 
     Returns
     -------
@@ -686,8 +699,8 @@ def binary_closing(input, structure=None, iterations=1, output=None,
 
     References
     ----------
-    .. [1] http://en.wikipedia.org/wiki/Closing_%28morphology%29
-    .. [2] http://en.wikipedia.org/wiki/Mathematical_morphology
+    .. [1] https://en.wikipedia.org/wiki/Closing_%28morphology%29
+    .. [2] https://en.wikipedia.org/wiki/Mathematical_morphology
 
     Examples
     --------
@@ -806,7 +819,7 @@ def binary_hit_or_miss(input, structure1=None, structure2=None,
 
     References
     ----------
-    .. [1] http://en.wikipedia.org/wiki/Hit-or-miss_transform
+    .. [1] https://en.wikipedia.org/wiki/Hit-or-miss_transform
 
     Examples
     --------
@@ -1044,7 +1057,7 @@ def binary_fill_holes(input, structure=None, output=None, origin=0):
 
     References
     ----------
-    .. [1] http://en.wikipedia.org/wiki/Mathematical_morphology
+    .. [1] https://en.wikipedia.org/wiki/Mathematical_morphology
 
 
     Examples
@@ -1149,8 +1162,8 @@ def grey_erosion(input, size=None, footprint=None, structure=None,
 
     References
     ----------
-    .. [1] http://en.wikipedia.org/wiki/Erosion_%28morphology%29
-    .. [2] http://en.wikipedia.org/wiki/Mathematical_morphology
+    .. [1] https://en.wikipedia.org/wiki/Erosion_%28morphology%29
+    .. [2] https://en.wikipedia.org/wiki/Mathematical_morphology
 
     Examples
     --------
@@ -1259,8 +1272,8 @@ def grey_dilation(input, size=None, footprint=None, structure=None,
 
     References
     ----------
-    .. [1] http://en.wikipedia.org/wiki/Dilation_%28morphology%29
-    .. [2] http://en.wikipedia.org/wiki/Mathematical_morphology
+    .. [1] https://en.wikipedia.org/wiki/Dilation_%28morphology%29
+    .. [2] https://en.wikipedia.org/wiki/Mathematical_morphology
 
     Examples
     --------
@@ -1396,7 +1409,7 @@ def grey_opening(input, size=None, footprint=None, structure=None,
 
     References
     ----------
-    .. [1] http://en.wikipedia.org/wiki/Mathematical_morphology
+    .. [1] https://en.wikipedia.org/wiki/Mathematical_morphology
 
     Examples
     --------
@@ -1420,6 +1433,8 @@ def grey_opening(input, size=None, footprint=None, structure=None,
     >>> # Note that the local maximum a[3,3] has disappeared
 
     """
+    if (size is not None) and (footprint is not None):
+        warnings.warn("ignoring size because footprint is set", UserWarning, stacklevel=2)
     tmp = grey_erosion(input, size, footprint, structure, None, mode,
                        cval, origin)
     return grey_dilation(tmp, size, footprint, structure, output, mode,
@@ -1477,7 +1492,7 @@ def grey_closing(input, size=None, footprint=None, structure=None,
 
     References
     ----------
-    .. [1] http://en.wikipedia.org/wiki/Mathematical_morphology
+    .. [1] https://en.wikipedia.org/wiki/Mathematical_morphology
 
     Examples
     --------
@@ -1501,6 +1516,8 @@ def grey_closing(input, size=None, footprint=None, structure=None,
     >>> # Note that the local minimum a[3,3] has disappeared
 
     """
+    if (size is not None) and (footprint is not None):
+        warnings.warn("ignoring size because footprint is set", UserWarning, stacklevel=2)
     tmp = grey_dilation(input, size, footprint, structure, None, mode,
                         cval, origin)
     return grey_erosion(tmp, size, footprint, structure, output, mode,
@@ -1562,7 +1579,7 @@ def morphological_gradient(input, size=None, footprint=None, structure=None,
 
     References
     ----------
-    .. [1] http://en.wikipedia.org/wiki/Mathematical_morphology
+    .. [1] https://en.wikipedia.org/wiki/Mathematical_morphology
 
     Examples
     --------
@@ -1712,6 +1729,8 @@ def white_tophat(input, size=None, footprint=None, structure=None,
     black_tophat
 
     """
+    if (size is not None) and (footprint is not None):
+        warnings.warn("ignoring size because footprint is set", UserWarning, stacklevel=2)
     tmp = grey_erosion(input, size, footprint, structure, None, mode,
                        cval, origin)
     tmp = grey_dilation(tmp, size, footprint, structure, output, mode,
@@ -1768,6 +1787,8 @@ def black_tophat(input, size=None, footprint=None,
     white_tophat, grey_opening, grey_closing
 
     """
+    if (size is not None) and (footprint is not None):
+        warnings.warn("ignoring size because footprint is set", UserWarning, stacklevel=2)
     tmp = grey_dilation(input, size, footprint, structure, None, mode,
                         cval, origin)
     tmp = grey_erosion(tmp, size, footprint, structure, output, mode,
@@ -1971,7 +1992,7 @@ def distance_transform_cdt(input, metric='chessboard', return_distances=True,
     else:
         try:
             metric = numpy.asarray(metric)
-        except:
+        except Exception:
             raise RuntimeError('invalid metric provided')
         for s in metric.shape:
             if s != 3:

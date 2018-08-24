@@ -72,7 +72,7 @@ class _cs_matrix(_data_matrix, _minmax_mixin, IndexMixin):
             # must be dense
             try:
                 arg1 = np.asarray(arg1)
-            except:
+            except Exception:
                 raise ValueError("unrecognized %s_matrix constructor usage" %
                         self.format)
             from .coo import coo_matrix
@@ -87,7 +87,7 @@ class _cs_matrix(_data_matrix, _minmax_mixin, IndexMixin):
                 try:
                     major_dim = len(self.indptr) - 1
                     minor_dim = self.indices.max() + 1
-                except:
+                except Exception:
                     raise ValueError('unable to infer matrix dimensions')
                 else:
                     self._shape = check_shape(self._swap((major_dim,minor_dim)))
@@ -293,7 +293,7 @@ class _cs_matrix(_data_matrix, _minmax_mixin, IndexMixin):
 
             warn("Comparing sparse matrices using >= and <= is inefficient, "
                  "using <, >, or !=, instead.", SparseEfficiencyWarning)
-            all_true = self.__class__(np.ones(self.shape))
+            all_true = self.__class__(np.ones(self.shape, dtype=np.bool_))
             res = self._binopt(other, '_gt_' if op_name == '_le_' else '_lt_')
             return all_true - res
         else:

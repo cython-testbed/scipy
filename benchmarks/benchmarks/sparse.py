@@ -188,8 +188,8 @@ class Construction(Benchmark):
 
 class Conversion(Benchmark):
     params = [
-        ['csr', 'csc', 'coo', 'dia', 'lil', 'dok'],
-        ['csr', 'csc', 'coo', 'dia', 'lil', 'dok'],
+        ['csr', 'csc', 'coo', 'dia', 'lil', 'dok', 'bsr'],
+        ['csr', 'csc', 'coo', 'dia', 'lil', 'dok', 'bsr'],
     ]
     param_names = ['from_format', 'to_format']
 
@@ -198,7 +198,7 @@ class Conversion(Benchmark):
 
         try:
             self.fn = getattr(base, 'to' + tofmt)
-        except:
+        except Exception:
             def fn():
                 raise RuntimeError()
             self.fn = fn
