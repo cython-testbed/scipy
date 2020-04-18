@@ -10,8 +10,6 @@ Wrappers for Qhull triangulation, plus some additional N-D geometry utilities
 # Distributed under the same BSD license as Scipy.
 #
 
-from __future__ import absolute_import
-
 import threading
 import numpy as np
 cimport numpy as np
@@ -89,6 +87,7 @@ cdef extern from "qhull_src/src/libqhull_r.h":
         flagT flipped
         flagT upperdelaunay
         flagT toporient
+        flagT good
         unsigned visitid
 
     ctypedef struct vertexT:
@@ -125,6 +124,8 @@ cdef extern from "qhull_src/src/libqhull_r.h":
         int num_vertices
         int center_size
         unsigned int facet_id
+        int hull_dim
+        int num_points
         pointT *first_point
         pointT *input_points
         coordT* feasible_point
@@ -156,14 +157,11 @@ cdef extern from "qhull_src/src/libqhull_r.h":
     void qh_produce_output(qhT *) nogil
     void qh_triangulate(qhT *) nogil
     void qh_checkpolygon(qhT *) nogil
-    void qh_findgood_all(qhT *) nogil
+    void qh_findgood_all(qhT *, facetT *facetlist) nogil
     void qh_appendprint(qhT *, int format) nogil
     setT *qh_pointvertex(qhT *) nogil
     realT *qh_readpoints(qhT *, int* num, int *dim, boolT* ismalloc) nogil
     void qh_zero(qhT *, void *errfile) nogil
-    int qh_new_qhull(qhT *, int dim, int numpoints, realT *points,
-                     boolT ismalloc, char* qhull_cmd, void *outfile,
-                     void *errfile, coordT* feaspoint) nogil
     int qh_pointid(qhT *, pointT *point) nogil
     vertexT *qh_nearvertex(qhT *, facetT *facet, pointT *point, double *dist) nogil
     boolT qh_addpoint(qhT *, pointT *furthest, facetT *facet, boolT checkdist) nogil
@@ -171,6 +169,11 @@ cdef extern from "qhull_src/src/libqhull_r.h":
                              realT *bestdist, boolT *isoutside) nogil
     void qh_setdelaunay(qhT *, int dim, int count, pointT *points) nogil
     coordT* qh_sethalfspace_all(qhT *, int dim, int count, coordT* halfspaces, pointT *feasible)
+
+cdef extern from "qhull_misc.h":
+    int qh_new_qhull_scipy(qhT *, int dim, int numpoints, realT *points,
+                           boolT ismalloc, char* qhull_cmd, void *outfile,
+                           void *errfile, coordT* feaspoint) nogil
 
 cdef extern from "qhull_src/src/io_r.h":
     ctypedef enum qh_RIDGE:
@@ -295,10 +298,8 @@ cdef class _Qhull:
 
         if incremental:
             incremental_bad_ops = set([b'Qbb', b'Qbk', b'QBk', b'QbB', b'Qz'])
-            bad_opts = []
-            for bad_opt in incremental_bad_ops:
-                if bad_opt in options:
-                    bad_opts.append(bad_opt)
+            bad_opts = [bad_opt for bad_opt in incremental_bad_ops
+                        if bad_opt in options]
             if bad_opts:
                 raise ValueError("Qhull options %r are incompatible "
                                  "with incremental mode" % (bad_opts,))
@@ -344,9 +345,9 @@ cdef class _Qhull:
                 coord = <coordT*>interior_point.data
             else:
                 coord = NULL
-            exitcode = qh_new_qhull(self._qh, self.ndim, self.numpoints,
-                                    <realT*>points.data, 0,
-                                    options_c, NULL, self._messages.handle, coord)
+            exitcode = qh_new_qhull_scipy(self._qh, self.ndim, self.numpoints,
+                                          <realT*>points.data, 0,
+                                          options_c, NULL, self._messages.handle, coord)
 
         if exitcode != 0:
             msg = self._messages.get()
@@ -453,7 +454,7 @@ cdef class _Qhull:
 
             p = <realT*>arr.data
 
-            for j in xrange(arr.shape[0]):
+            for j in range(arr.shape[0]):
                 facet = qh_findbestfacet(self._qh, p, 0, &bestdist, &isoutside)
                 if isoutside:
                     if not qh_addpoint(self._qh, p, facet, 0):
@@ -473,6 +474,10 @@ cdef class _Qhull:
             else:
                 self._point_arrays.append(arr)
             self.numpoints += arr.shape[0]
+
+            # update facet visibility
+            with nogil:
+                qh_findgood_all(self._qh, self._qh[0].facet_list)
         finally:
             self._qh[0].NOerrexit = 1
 
@@ -543,6 +548,7 @@ cdef class _Qhull:
         cdef int i, j, ipoint, ipoint2, ncoplanar
         cdef object tmp
         cdef np.ndarray[np.npy_int, ndim=2] facets
+        cdef np.ndarray[np.npy_int, ndim=1] good
         cdef np.ndarray[np.npy_int, ndim=2] neighbors
         cdef np.ndarray[np.npy_int, ndim=2] coplanar
         cdef np.ndarray[np.double_t, ndim=2] equations
@@ -588,6 +594,7 @@ cdef class _Qhull:
 
         # Allocate output
         facets = np.zeros((j, facet_ndim), dtype=np.intc)
+        good = np.zeros(j, dtype=np.intc)
         neighbors = np.zeros((j, facet_ndim), dtype=np.intc)
         equations = np.zeros((j, facet_ndim+1), dtype=np.double)
 
@@ -610,7 +617,7 @@ cdef class _Qhull:
                     facet.toporient == qh_ORIENTclock and facet_ndim == 3):
                     # Swap the first and second indices to maintain a
                     # counter-clockwise orientation.
-                    for i in xrange(2):
+                    for i in range(2):
                         # Save the vertex info
                         swapped_index = 1 ^ i
                         vertex = <vertexT*>facet.vertices.e[i].p
@@ -623,7 +630,7 @@ cdef class _Qhull:
 
                     lower_bound = 2
 
-                for i in xrange(lower_bound, facet_ndim):
+                for i in range(lower_bound, facet_ndim):
                     # Save the vertex info
                     vertex = <vertexT*>facet.vertices.e[i].p
                     ipoint = qh_pointid(self._qh, vertex.point)
@@ -634,7 +641,7 @@ cdef class _Qhull:
                     neighbors[j, i] = id_map[neighbor.id]
 
                 # Save simplex equation info
-                for i in xrange(facet_ndim):
+                for i in range(facet_ndim):
                     equations[j, i] = facet.normal[i]
                 equations[j, facet_ndim] = facet.offset
 
@@ -657,10 +664,13 @@ cdef class _Qhull:
                         coplanar[ncoplanar, 2] = qh_pointid(self._qh, vertex.point)
                         ncoplanar += 1
 
+                # Save good info
+                good[j] = facet.good
+
                 j += 1
                 facet = facet.next
 
-        return facets, neighbors, equations, coplanar[:ncoplanar]
+        return facets, neighbors, equations, coplanar[:ncoplanar], good
 
     @cython.final
     @cython.boundscheck(False)
@@ -677,7 +687,7 @@ cdef class _Qhull:
             The array of points contained in Qhull.
 
         """
-        cdef vertexT *vertex
+        cdef pointT *point
         cdef int i, j, numpoints, point_ndim
         cdef np.ndarray[np.npy_double, ndim=2] points
 
@@ -691,20 +701,15 @@ cdef class _Qhull:
         if self._is_delaunay:
             point_ndim += 1
 
-        numvertices = self._qh.num_vertices
+        numpoints = self._qh.num_points
+        points = np.zeros((numpoints, point_ndim))
 
-        vertex = self._qh.vertex_list
-        points = np.zeros((numvertices, point_ndim))
-
-        i = 0
         with nogil:
-            while vertex and vertex.next:
-                j = 0
-                for j in xrange(point_ndim):
-                    points[i, j] = vertex.point[j]
-
-                i += 1
-                vertex = vertex.next
+            point = self._qh.first_point
+            for i in range(numpoints):
+                for j in range(point_ndim):
+                    points[i,j] = point[j]
+                point += self._qh.hull_dim
 
         return points
 
@@ -749,7 +754,7 @@ cdef class _Qhull:
         while facet and facet.next:
             facetsi = []
             j = 0
-            for j in xrange(facet_ndim):
+            for j in range(facet_ndim):
                 equations[i, j] = facet.normal[j]
             equations[i, facet_ndim] = facet.offset
 
@@ -850,7 +855,7 @@ cdef class _Qhull:
 
             inf_seen = 0
             cur_region = []
-            for k in xrange(qh_setsize(self._qh, vertex.neighbors)):
+            for k in range(qh_setsize(self._qh, vertex.neighbors)):
                 neighbor = <facetT*>vertex.neighbors.e[k].p
                 i = neighbor.visitid - 1
                 if i == -1:
@@ -1010,7 +1015,7 @@ cdef void _visit_voronoi(qhT *_qh, void *ptr, vertexT *vertex, vertexT *vertexA,
 
     # Record which voronoi vertices constitute the ridge
     cur_vertices = []
-    for i in xrange(qh_setsize(_qh, centers)):
+    for i in range(qh_setsize(_qh, centers)):
         ix = (<facetT*>centers.e[i].p).visitid - 1
         cur_vertices.append(ix)
     qh._ridge_vertices.append(cur_vertices)
@@ -1100,10 +1105,10 @@ def _get_barycentric_transforms(np.ndarray[np.double_t, ndim=2] points,
     rcond_limit = 1000*eps
 
     with nogil:
-        for isimplex in xrange(nsimplex):
-            for i in xrange(ndim):
+        for isimplex in range(nsimplex):
+            for i in range(ndim):
                 Tinvs[isimplex,ndim,i] = points[simplices[isimplex,ndim],i]
-                for j in xrange(ndim):
+                for j in range(ndim):
                     T[i,j] = (points[simplices[isimplex,j],i]
                               - Tinvs[isimplex,ndim,i])
                 Tinvs[isimplex,i,i] = 1
@@ -1166,9 +1171,9 @@ cdef int _barycentric_inside(int ndim, double *transform,
     """
     cdef int i, j
     c[ndim] = 1.0
-    for i in xrange(ndim):
+    for i in range(ndim):
         c[i] = 0
-        for j in xrange(ndim):
+        for j in range(ndim):
             c[i] += transform[ndim*i + j] * (x[j] - transform[ndim*ndim + j])
         c[ndim] -= c[i]
 
@@ -1191,11 +1196,11 @@ cdef void _barycentric_coordinate_single(int ndim, double *transform,
 
     if i == ndim:
         c[ndim] = 1.0
-        for j in xrange(ndim):
+        for j in range(ndim):
             c[ndim] -= c[j]
     else:
         c[i] = 0
-        for j in xrange(ndim):
+        for j in range(ndim):
             c[i] += transform[ndim*i + j] * (x[j] - transform[ndim*ndim + j])
 
 cdef void _barycentric_coordinates(int ndim, double *transform,
@@ -1206,9 +1211,9 @@ cdef void _barycentric_coordinates(int ndim, double *transform,
     """
     cdef int i, j
     c[ndim] = 1.0
-    for i in xrange(ndim):
+    for i in range(ndim):
         c[i] = 0
-        for j in xrange(ndim):
+        for j in range(ndim):
             c[i] += transform[ndim*i + j] * (x[j] - transform[ndim*ndim + j])
         c[ndim] -= c[i]
 
@@ -1220,7 +1225,7 @@ cdef void _barycentric_coordinates(int ndim, double *transform,
 cdef void _lift_point(DelaunayInfo_t *d, double *x, double *z) nogil:
     cdef int i
     z[d.ndim] = 0
-    for i in xrange(d.ndim):
+    for i in range(d.ndim):
         z[i] = x[i]
         z[d.ndim] += x[i]**2
     z[d.ndim] *= d.paraboloid_scale
@@ -1233,7 +1238,7 @@ cdef double _distplane(DelaunayInfo_t *d, int isimplex, double *point) nogil:
     cdef double dist
     cdef int k
     dist = d.equations[isimplex*(d.ndim+2) + d.ndim+1]
-    for k in xrange(d.ndim+1):
+    for k in range(d.ndim+1):
         dist += d.equations[isimplex*(d.ndim+2) + k] * point[k]
     return dist
 
@@ -1250,7 +1255,7 @@ cdef int _is_point_fully_outside(DelaunayInfo_t *d, double *x,
     """
 
     cdef int i
-    for i in xrange(d.ndim):
+    for i in range(d.ndim):
         if x[i] < d.min_bound[i] - eps or x[i] > d.max_bound[i] + eps:
             return 1
     return 0
@@ -1269,7 +1274,7 @@ cdef int _find_simplex_bruteforce(DelaunayInfo_t *d, double *c,
     if _is_point_fully_outside(d, x, eps):
         return -1
 
-    for isimplex in xrange(d.nsimplex):
+    for isimplex in range(d.nsimplex):
         transform = d.transform + isimplex*d.ndim*(d.ndim+1)
 
         if transform[0] == transform[0]:
@@ -1283,7 +1288,7 @@ cdef int _find_simplex_bruteforce(DelaunayInfo_t *d, double *c,
             # we replace this inside-check by a check of the neighbors
             # with a larger epsilon
 
-            for k in xrange(d.ndim+1):
+            for k in range(d.ndim+1):
                 ineighbor = d.neighbors[(d.ndim+1)*isimplex + k]
                 if ineighbor == -1:
                     continue
@@ -1298,7 +1303,7 @@ cdef int _find_simplex_bruteforce(DelaunayInfo_t *d, double *c,
                 # Check that the point lies (almost) inside the
                 # neigbor simplex
                 inside = 1
-                for m in xrange(d.ndim+1):
+                for m in range(d.ndim+1):
                     if d.neighbors[(d.ndim+1)*ineighbor + m] == isimplex:
                         # allow extra leeway towards isimplex
                         if not (-eps_broad <= c[m] <= 1 + eps):
@@ -1376,7 +1381,7 @@ cdef int _find_simplex_directed(DelaunayInfo_t *d, double *c,
         transform = d.transform + isimplex*ndim*(ndim+1)
 
         inside = 1
-        for k in xrange(ndim+1):
+        for k in range(ndim+1):
             _barycentric_coordinate_single(ndim, transform, x, c, k)
 
             if c[k] < -eps:
@@ -1498,7 +1503,7 @@ cdef int _find_simplex(DelaunayInfo_t *d, double *c,
         if best_dist > 0:
             break
         changed = 0
-        for k in xrange(ndim+1):
+        for k in range(ndim+1):
             ineigh = d.neighbors[(ndim+1)*isimplex + k]
             if ineigh == -1:
                 continue
@@ -1714,6 +1719,10 @@ class Delaunay(_QhullUser):
     vertex_neighbor_vertices : tuple of two ndarrays of int; (indptr, indices)
         Neighboring vertices of vertices. The indices of neighboring
         vertices of vertex `k` are ``indices[indptr[k]:indptr[k+1]]``.
+    furthest_site
+        True if this was a furthest site triangulation and False if not.
+
+        .. versionadded:: 1.4.0
 
     Raises
     ------
@@ -1829,13 +1838,15 @@ class Delaunay(_QhullUser):
                        furthest_site=furthest_site, incremental=incremental)
         _QhullUser.__init__(self, qhull, incremental=incremental)
 
+        self.furthest_site = furthest_site
+
     def _update(self, qhull):
         qhull.triangulate()
 
         self.paraboloid_scale, self.paraboloid_shift = \
                                qhull.get_paraboloid_shift_scale()
 
-        self.simplices, self.neighbors, self.equations, self.coplanar = \
+        self.simplices, self.neighbors, self.equations, self.coplanar, self.good = \
                        qhull.get_simplex_facet_array()
 
         self.nsimplex = self.simplices.shape[0]
@@ -1860,7 +1871,7 @@ class Delaunay(_QhullUser):
         """
         Affine transform from ``x`` to the barycentric coordinates ``c``.
 
-        :type: ndarray of double, shape (nsimplex, ndim+1, ndim)
+        :type: *ndarray of double, shape (nsimplex, ndim+1, ndim)*
 
         This is defined by::
 
@@ -1885,7 +1896,7 @@ class Delaunay(_QhullUser):
         """
         Lookup array, from a vertex, to some simplex which it is a part of.
 
-        :type: ndarray of int, shape (npoints,)
+        :type: *ndarray of int, shape (npoints,)*
         """
         cdef int isimplex, k, ivertex, nsimplex, ndim
         cdef np.ndarray[np.npy_int, ndim=2] simplices
@@ -1909,8 +1920,8 @@ class Delaunay(_QhullUser):
             ndim = self.ndim
 
             with nogil:
-                for isimplex in xrange(nsimplex):
-                    for k in xrange(ndim+1):
+                for isimplex in range(nsimplex):
+                    for k in range(ndim+1):
                         ivertex = simplices[isimplex, k]
                         if arr[ivertex] == -1:
                             arr[ivertex] = isimplex
@@ -1943,9 +1954,9 @@ class Delaunay(_QhullUser):
 
             try:
                 with nogil:
-                    for i in xrange(nsimplex):
-                        for j in xrange(ndim+1):
-                            for k in xrange(ndim+1):
+                    for i in range(nsimplex):
+                        for j in range(ndim+1):
+                            for k in range(ndim+1):
                                 if simplices[i,j] != simplices[i,k]:
                                     if setlist.add(&sets, simplices[i,j], simplices[i,k]):
                                         with gil:
@@ -1963,7 +1974,7 @@ class Delaunay(_QhullUser):
         """
         Vertices of facets forming the convex hull of the point set.
 
-        :type: ndarray of int, shape (nfaces, ndim)
+        :type: *ndarray of int, shape (nfaces, ndim)*
 
         The array contains the indices of the points
         belonging to the (N-1)-dimensional facets that form the convex
@@ -1992,10 +2003,10 @@ class Delaunay(_QhullUser):
         arr = out
 
         m = 0
-        for isimplex in xrange(nsimplex):
-            for k in xrange(ndim+1):
+        for isimplex in range(nsimplex):
+            for k in range(ndim+1):
                 if neighbors[isimplex,k] == -1:
-                    for j in xrange(ndim+1):
+                    for j in range(ndim+1):
                         if j < k:
                             arr[m,j] = simplices[isimplex,j]
                         elif j > k:
@@ -2079,7 +2090,7 @@ class Delaunay(_QhullUser):
 
         if bruteforce:
             with nogil:
-                for k in xrange(x.shape[0]):
+                for k in range(x.shape[0]):
                     isimplex = _find_simplex_bruteforce(
                         &info, c,
                         <double*>x.data + info.ndim*k,
@@ -2087,7 +2098,7 @@ class Delaunay(_QhullUser):
                     out_[k] = isimplex
         else:
             with nogil:
-                for k in xrange(x.shape[0]):
+                for k in range(x.shape[0]):
                     isimplex = _find_simplex(&info, c,
                                              <double*>x.data + info.ndim*k,
                                              &start, eps, eps_broad)
@@ -2123,8 +2134,8 @@ class Delaunay(_QhullUser):
         out_ = out
 
         with nogil:
-            for i in xrange(x.shape[0]):
-                for j in xrange(info.nsimplex):
+            for i in range(x.shape[0]):
+                for j in range(info.nsimplex):
                     _lift_point(&info, (<double*>x.data) + info.ndim*i, z)
                     out_[i,j] = _distplane(&info, j, z)
 
@@ -2156,6 +2167,28 @@ def tsearch(tri, xi):
     See Also
     --------
     Delaunay.find_simplex
+
+
+    Examples
+    --------
+
+    >>> import numpy as np
+    >>> import matplotlib.pyplot as plt
+    >>> from scipy.spatial import Delaunay, delaunay_plot_2d, tsearch
+
+    The Delaunay triangulation of a set of random points:
+
+    >>> pts = np.random.rand(20, 2)
+    >>> tri = Delaunay(pts)
+    >>> _ = delaunay_plot_2d(tri)
+
+    Find the simplices containing a given set of points:
+
+    >>> loc = np.random.uniform(0.2, 0.8, (5, 2))
+    >>> s = tsearch(tri, loc)
+    >>> plt.triplot(pts[:, 0], pts[:, 1], tri.simplices[s], 'b-', mask=s==-1)
+    >>> plt.scatter(loc[:, 0], loc[:, 1], c='r', marker='x')
+    >>> plt.show()
 
     """
     return tri.find_simplex(xi)
@@ -2270,6 +2303,20 @@ class ConvexHull(_QhullUser):
         triangulation due to numerical precision issues.
 
         If option "Qc" is not specified, this list is not computed.
+    good : ndarray of bool or None
+        A one-dimensional Boolean array indicating which facets are
+        good. Used with options that compute good facets, e.g. QGn
+        and QG-n. Good facets are defined as those that are
+        visible (n) or invisible (-n) from point n, where
+        n is the nth point in 'points'. The 'good' attribute may be
+        used as an index into 'simplices' to return the good (visible)
+        facets: simplices[good]. A facet is visible from the outside
+        of the hull only, and neither coplanarity nor degeneracy count
+        as cases of visibility.
+
+        If a "QGn" or "QG-n" option is not specified, None is returned.
+
+        .. versionadded:: 1.3.0
     area : float
         Area of the convex hull.
 
@@ -2297,7 +2344,7 @@ class ConvexHull(_QhullUser):
 
     Convex hull of a random set of points:
 
-    >>> from scipy.spatial import ConvexHull
+    >>> from scipy.spatial import ConvexHull, convex_hull_plot_2d
     >>> points = np.random.rand(30, 2)   # 30 random points in 2-D
     >>> hull = ConvexHull(points)
 
@@ -2313,6 +2360,48 @@ class ConvexHull(_QhullUser):
 
     >>> plt.plot(points[hull.vertices,0], points[hull.vertices,1], 'r--', lw=2)
     >>> plt.plot(points[hull.vertices[0],0], points[hull.vertices[0],1], 'ro')
+    >>> plt.show()
+
+    Facets visible from a point:
+
+    Create a square and add a point above the square.
+
+    >>> generators = np.array([[0.2, 0.2],
+    ...                        [0.2, 0.4],
+    ...                        [0.4, 0.4],
+    ...                        [0.4, 0.2],
+    ...                        [0.3, 0.6]])
+
+    Call ConvexHull with the QG option. QG4 means 
+    compute the portions of the hull not including
+    point 4, indicating the facets that are visible 
+    from point 4.
+
+    >>> hull = ConvexHull(points=generators,
+    ...                   qhull_options='QG4')
+
+    The "good" array indicates which facets are 
+    visible from point 4.
+
+    >>> print(hull.simplices)
+        [[1 0]
+         [1 2]
+         [3 0]
+         [3 2]]
+    >>> print(hull.good)
+        [False  True False False]
+
+    Now plot it, highlighting the visible facets.
+
+    >>> fig = plt.figure()
+    >>> ax = fig.add_subplot(1,1,1)
+    >>> for visible_facet in hull.simplices[hull.good]:
+    ...     ax.plot(hull.points[visible_facet, 0],
+    ...             hull.points[visible_facet, 1],
+    ...             color='violet',
+    ...             lw=6)
+    >>> convex_hull_plot_2d(hull, ax=ax)
+        <Figure size 640x480 with 1 Axes> # may vary
     >>> plt.show()
 
     References
@@ -2341,8 +2430,24 @@ class ConvexHull(_QhullUser):
     def _update(self, qhull):
         qhull.triangulate()
 
-        self.simplices, self.neighbors, self.equations, self.coplanar = \
+        self.simplices, self.neighbors, self.equations, self.coplanar, self.good = \
                        qhull.get_simplex_facet_array()
+
+        # only populate self.good with a QG option set
+        option_set = set()
+        if qhull.options is not None:
+            option_set.update(qhull.options.split())
+
+        QG_option_present = 0
+        for option in option_set:
+            if b"QG" in option:
+                QG_option_present += 1
+                break
+
+        if not QG_option_present:
+            self.good = None
+        else:
+            self.good = self.good.astype(bool)
 
         self.volume, self.area = qhull.volume_area()
 
@@ -2413,6 +2518,10 @@ class Voronoi(_QhullUser):
         Index of the Voronoi region for each input point.
         If qhull option "Qc" was not specified, the list will contain -1
         for points that are not associated with a Voronoi region.
+    furthest_site
+        True if this was a furthest site triangulation and False if not.
+
+        .. versionadded:: 1.4.0
 
     Raises
     ------
@@ -2445,35 +2554,35 @@ class Voronoi(_QhullUser):
     The Voronoi vertices:
 
     >>> vor.vertices
-    array([[ 0.5,  0.5],
-           [ 1.5,  0.5],
-           [ 0.5,  1.5],
-           [ 1.5,  1.5]])
+    array([[0.5, 0.5],
+           [0.5, 1.5],
+           [1.5, 0.5],
+           [1.5, 1.5]])
 
     There is a single finite Voronoi region, and four finite Voronoi
     ridges:
 
     >>> vor.regions
-    [[], [-1, 0], [-1, 1], [1, -1, 0], [3, -1, 2], [-1, 3], [-1, 2], [3, 2, 0, 1], [2, -1, 0], [3, -1, 1]]
+    [[], [-1, 0], [-1, 1], [1, -1, 0], [3, -1, 2], [-1, 3], [-1, 2], [0, 1, 3, 2], [2, -1, 0], [3, -1, 1]]
     >>> vor.ridge_vertices
-    [[-1, 0], [-1, 0], [-1, 1], [-1, 1], [0, 1], [-1, 3], [-1, 2], [2, 3], [-1, 3], [-1, 2], [0, 2], [1, 3]]
+    [[-1, 0], [-1, 0], [-1, 1], [-1, 1], [0, 1], [-1, 3], [-1, 2], [2, 3], [-1, 3], [-1, 2], [1, 3], [0, 2]]
 
     The ridges are perpendicular between lines drawn between the following
     input points:
 
     >>> vor.ridge_points
-    array([[0, 1],
-           [0, 3],
-           [6, 3],
-           [6, 7],
-           [3, 4],
-           [5, 8],
-           [5, 2],
-           [5, 4],
-           [8, 7],
+    array([[0, 3],
+           [0, 1],
+           [2, 5],
            [2, 1],
-           [4, 1],
-           [4, 7]], dtype=int32)
+           [1, 4],
+           [7, 8],
+           [7, 6],
+           [7, 4],
+           [8, 5],
+           [6, 3],
+           [4, 5],
+           [4, 3]], dtype=int32)
 
     """
     def __init__(self, points, furthest_site=False, incremental=False,
@@ -2496,6 +2605,8 @@ class Voronoi(_QhullUser):
         qhull = _Qhull(b"v", points, qhull_options, furthest_site=furthest_site,
                        incremental=incremental)
         _QhullUser.__init__(self, qhull, incremental=incremental)
+
+        self.furthest_site = furthest_site
 
     def _update(self, qhull):
         self.vertices, self.ridge_points, self.ridge_vertices, \
@@ -2653,7 +2764,7 @@ class HalfspaceIntersection(_QhullUser):
     >>> c[-1] = -1
     >>> A = np.hstack((halfspaces[:, :-1], norm_vector))
     >>> b = - halfspaces[:, -1:]
-    >>> res = linprog(c, A_ub=A, b_ub=b)
+    >>> res = linprog(c, A_ub=A, b_ub=b, bounds=(None, None))
     >>> x = res.x[:-1]
     >>> y = res.x[-1]
     >>> circle = Circle(x, radius=y, alpha=0.3)

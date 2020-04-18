@@ -1,19 +1,16 @@
 """test sparse matrix construction functions"""
 
-from __future__ import division, print_function, absolute_import
-
 import numpy as np
-from numpy import array, matrix
+from numpy import array
 from numpy.testing import (assert_equal, assert_,
         assert_array_equal, assert_array_almost_equal_nulp)
 import pytest
 from pytest import raises as assert_raises
 from scipy._lib._testutils import check_free_memory
 
-from scipy.sparse import csr_matrix, coo_matrix
-
-from scipy.sparse import construct
+from scipy.sparse import csr_matrix, coo_matrix, construct
 from scipy.sparse.construct import rand as sprand
+from scipy.sparse.sputils import matrix
 
 sparse_formats = ['csr','csc','coo','bsr','dia','lil','dok']
 
@@ -423,16 +420,18 @@ class TestConstructUtils(object):
     def test_random_sampling(self):
         # Simple sanity checks for sparse random sampling.
         for f in sprand, _sprandn:
-            for t in [np.float32, np.float64, np.longdouble]:
+            for t in [np.float32, np.float64, np.longdouble,
+                      np.int32, np.int64, np.complex64, np.complex128]:
                 x = f(5, 10, density=0.1, dtype=t)
                 assert_equal(x.dtype, t)
                 assert_equal(x.shape, (5, 10))
-                assert_equal(x.nonzero()[0].size, 5)
+                assert_equal(x.nnz, 5)
 
             x1 = f(5, 10, density=0.1, random_state=4321)
             assert_equal(x1.dtype, np.double)
 
-            x2 = f(5, 10, density=0.1, random_state=np.random.RandomState(4321))
+            x2 = f(5, 10, density=0.1,
+                   random_state=np.random.RandomState(4321))
 
             assert_array_equal(x1.data, x2.data)
             assert_array_equal(x1.row, x2.row)
@@ -470,5 +469,5 @@ class TestConstructUtils(object):
     def test_random_accept_str_dtype(self):
         # anything that np.dtype can convert to a dtype should be accepted
         # for the dtype
-        a = construct.random(10, 10, dtype='d')
+        construct.random(10, 10, dtype='d')
 

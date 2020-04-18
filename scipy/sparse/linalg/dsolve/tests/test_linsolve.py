@@ -1,15 +1,13 @@
-from __future__ import division, print_function, absolute_import
-
 import sys
 import threading
 
 import numpy as np
-from numpy import array, finfo, arange, eye, all, unique, ones, dot, matrix
+from numpy import array, finfo, arange, eye, all, unique, ones, dot
 import numpy.random as random
 from numpy.testing import (
         assert_array_almost_equal, assert_almost_equal,
         assert_equal, assert_array_equal, assert_, assert_allclose,
-        assert_warns)
+        assert_warns, suppress_warnings)
 import pytest
 from pytest import raises as assert_raises
 
@@ -20,8 +18,6 @@ from scipy.sparse import (spdiags, SparseEfficiencyWarning, csc_matrix,
 from scipy.sparse.linalg import SuperLU
 from scipy.sparse.linalg.dsolve import (spsolve, use_solver, splu, spilu,
         MatrixRankWarning, _superlu, spsolve_triangular, factorized)
-
-from scipy._lib._numpy_compat import suppress_warnings
 
 
 sup_sparse_efficiency = suppress_warnings()
@@ -215,9 +211,9 @@ class TestLinsolve(object):
                 assert_(norm(b - Asp*x) < 10 * cond_A * eps)
 
     def test_bvector_smoketest(self):
-        Adense = matrix([[0., 1., 1.],
-                         [1., 0., 1.],
-                         [0., 0., 1.]])
+        Adense = array([[0., 1., 1.],
+                        [1., 0., 1.],
+                        [0., 0., 1.]])
         As = csc_matrix(Adense)
         random.seed(1234)
         x = random.randn(3)
@@ -227,9 +223,9 @@ class TestLinsolve(object):
         assert_array_almost_equal(x, x2)
 
     def test_bmatrix_smoketest(self):
-        Adense = matrix([[0., 1., 1.],
-                         [1., 0., 1.],
-                         [0., 0., 1.]])
+        Adense = array([[0., 1., 1.],
+                        [1., 0., 1.],
+                        [0., 0., 1.]])
         As = csc_matrix(Adense)
         random.seed(1234)
         x = random.randn(3, 4)
@@ -715,4 +711,7 @@ class TestSpsolveTriangular(object):
                               np.random.randint(-9, 9, (n, m)) * 1j):
                         x = spsolve_triangular(A, b, lower=lower)
                         assert_array_almost_equal(A.dot(x), b)
-
+                        x = spsolve_triangular(A, b, lower=lower,
+                                               unit_diagonal=True)
+                        A.setdiag(1)
+                        assert_array_almost_equal(A.dot(x), b)
